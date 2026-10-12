@@ -10,8 +10,8 @@
 
 | العنصر | التقنية |
 |---|---|
-| إطار العمل | ASP.NET Core MVC على **.NET 8 (LTS)** |
-| ORM | Entity Framework Core 8 |
+| إطار العمل | ASP.NET Core MVC على **.NET 9** |
+| ORM | Entity Framework Core 9 |
 | قاعدة البيانات | **SQL Server** (LocalDB / Express / Full) |
 | واجهة المستخدم | Bootstrap 5 **RTL** + واجهة عربية |
 | تصدير Excel | ClosedXML |
@@ -45,11 +45,11 @@ tests/
 
 ## 3) المتطلبات المسبقة
 
-- .NET SDK 8.0 أو أحدث
+- .NET SDK 9.0 أو أحدث
 - SQL Server (LocalDB أو Express أو Full) — الوضع الافتراضي يستخدم LocalDB
 - أداة `dotnet-ef` لإنشاء/تحديث الترحيلات (اختياري):
   ```bash
-  dotnet tool install --global dotnet-ef --version 8.0.10
+  dotnet tool install --global dotnet-ef --version 9.0.20
   ```
 
 ## 4) إعداد Connection String
