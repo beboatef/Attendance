@@ -1,0 +1,25 @@
+@model List<AppSetting>
+@{ ViewData["Title"] = "إعدادات النظام"; }
+<div class="card">
+    <div class="card-header fw-bold">الإعدادات القابلة للتعديل</div>
+    <div class="card-body">
+        <form asp-action="Save" method="post">
+            <div class="table-responsive">
+                <table class="table">
+                    <thead><tr><th>المفتاح</th><th>القيمة</th><th>الوصف</th></tr></thead>
+                    <tbody>
+                    @foreach (var s in Model)
+                    {
+                        <tr>
+                            <td><code>@s.Key</code></td>
+                            <td><input type="text" name="values[@s.Key]" value="@s.Value" class="form-control" /></td>
+                            <td class="text-muted small">@s.Description</td>
+                        </tr>
+                    }
+                    </tbody>
+                </table>
+            </div>
+            <button class="btn btn-primary">حفظ الإعدادات</button>
+        </form>
+    </div>
+</div>

@@ -1,0 +1,57 @@
+@{
+    ViewData["Title"] = "استيراد تقرير البصمة";
+    var batches = ViewBag.Batches as List<ImportBatch> ?? new List<ImportBatch>();
+}
+<div class="card mb-3">
+    <div class="card-header fw-bold">رفع ملف البصمة</div>
+    <div class="card-body">
+        <form asp-action="Upload" method="post" enctype="multipart/form-data" class="row g-3">
+            <div class="col-md-8">
+                <label class="form-label">اختر ملف البصمة (xls / xlsx / csv / Excel XML)</label>
+                <input type="file" name="file" class="form-control" required />
+                <div class="form-text">
+                    يتم اكتشاف نوع الملف الفعلي من محتواه، وليس من امتداده. الأعمدة المدعومة:
+                    No. / Device ID / ID. / Name / Att.Type / Att.Time
+                </div>
+            </div>
+            <div class="col-md-4 d-flex align-items-end">
+                <button class="btn btn-primary w-100">تحليل ومعاينة</button>
+            </div>
+        </form>
+    </div>
+</div>
+
+<div class="card">
+    <div class="card-header fw-bold">آخر عمليات الاستيراد</div>
+    <div class="table-responsive">
+        <table class="table table-striped mb-0">
+            <thead>
+            <tr>
+                <th>الملف</th><th>النوع</th><th>تاريخ الاستيراد</th><th>المستخدم</th>
+                <th>إجمالي</th><th>ناجح</th><th>مكرر</th><th>غير صالح</th><th>موظف غير معروف</th><th></th>
+            </tr>
+            </thead>
+            <tbody>
+            @if (!batches.Any())
+            {
+                <tr><td colspan="10" class="text-center text-muted py-4">لا توجد عمليات استيراد بعد</td></tr>
+            }
+            @foreach (var b in batches)
+            {
+                <tr>
+                    <td>@b.FileName</td>
+                    <td>@b.DetectedFormat</td>
+                    <td>@b.ImportedAt.ToLocalTime().ToString("yyyy-MM-dd HH:mm")</td>
+                    <td>@b.ImportedByName</td>
+                    <td>@b.TotalRows</td>
+                    <td class="text-success">@b.SuccessRows</td>
+                    <td class="text-warning">@b.DuplicateRows</td>
+                    <td class="text-danger">@b.InvalidRows</td>
+                    <td class="text-danger">@b.UnknownEmployeeRows</td>
+                    <td><a class="btn btn-sm btn-outline-primary" asp-action="Details" asp-route-id="@b.Id">تفاصيل</a></td>
+                </tr>
+            }
+            </tbody>
+        </table>
+    </div>
+</div>

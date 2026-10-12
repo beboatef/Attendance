@@ -1,0 +1,98 @@
+@using Microsoft.AspNetCore.Identity
+@using HrPayroll.Domain.Entities
+@inject SignInManager<ApplicationUser> SignInManager
+@inject UserManager<ApplicationUser> UserManager
+@{
+    var isAuth = SignInManager.IsSignedIn(User);
+    var isAdmin = User.IsInRole(AppRoles.Admin);
+    var isHr = isAdmin || User.IsInRole(AppRoles.Hr);
+    var isAcct = isAdmin || User.IsInRole(AppRoles.Accountant);
+}
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>@ViewData["Title"] - نظام الموارد البشرية والرواتب</title>
+    <link rel="stylesheet" href="~/lib/bootstrap/dist/css/bootstrap.rtl.min.css" />
+    <link rel="stylesheet" href="~/css/site.css" asp-append-version="true" />
+</head>
+<body>
+<div class="app-shell">
+    @if (isAuth)
+    {
+        <aside class="sidebar">
+            <div class="brand">HR &amp; Payroll</div>
+            <nav>
+                <a asp-controller="Dashboard" asp-action="Index">لوحة التحكم</a>
+                @if (isHr)
+                {
+                    <div class="nav-group">شؤون الموظفين</div>
+                    <a asp-controller="Employees" asp-action="Index">الموظفون</a>
+                    <a asp-controller="Shifts" asp-action="Index">الورديات</a>
+                    <a asp-controller="Import" asp-action="Index">استيراد البصمة</a>
+                    <a asp-controller="Attendance" asp-action="Index">الحضور اليومي</a>
+                    <a asp-controller="Attendance" asp-action="Exceptions">الاستثناءات والمراجعة</a>
+                }
+                @if (isAcct)
+                {
+                    <div class="nav-group">الرواتب</div>
+                    <a asp-controller="Loans" asp-action="Index">السلف</a>
+                    <a asp-controller="Deductions" asp-action="Index">الخصومات والجزاءات</a>
+                    <a asp-controller="Overtime" asp-action="Index">اعتماد الإضافي</a>
+                    <a asp-controller="Payroll" asp-action="Index">كشوف الرواتب</a>
+                }
+                <div class="nav-group">التقارير والنظام</div>
+                <a asp-controller="Reports" asp-action="Index">التقارير وتصدير Excel</a>
+                @if (isAdmin)
+                {
+                    <a asp-controller="Settings" asp-action="Index">الإعدادات</a>
+                    <a asp-controller="Users" asp-action="Index">المستخدمون والصلاحيات</a>
+                }
+            </nav>
+        </aside>
+    }
+    <div class="main-area">
+        <header class="topbar">
+            <div class="topbar-title">@ViewData["Title"]</div>
+            <div class="topbar-actions">
+                @if (isAuth)
+                {
+                    <span class="user-name">@User.Identity?.Name</span>
+                    <form asp-controller="Account" asp-action="Logout" method="post" class="d-inline">
+                        <button type="submit" class="btn btn-sm btn-outline-secondary">خروج</button>
+                    </form>
+                }
+            </div>
+        </header>
+        <main class="content">
+            @if (TempData["Success"] != null)
+            {
+                <div class="alert alert-success alert-dismissible fade show" role="alert">
+                    @TempData["Success"]
+                    <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+                </div>
+            }
+            @if (TempData["Error"] != null)
+            {
+                <div class="alert alert-danger alert-dismissible fade show" role="alert">
+                    @TempData["Error"]
+                    <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+                </div>
+            }
+            @if (TempData["Warning"] != null)
+            {
+                <div class="alert alert-warning alert-dismissible fade show" role="alert">
+                    @TempData["Warning"]
+                    <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+                </div>
+            }
+            @RenderBody()
+        </main>
+    </div>
+</div>
+<script src="~/lib/jquery/dist/jquery.min.js"></script>
+<script src="~/lib/bootstrap/dist/js/bootstrap.bundle.min.js"></script>
+@await RenderSectionAsync("Scripts", required: false)
+</body>
+</html>

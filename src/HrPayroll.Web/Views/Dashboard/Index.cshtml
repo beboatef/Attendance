@@ -1,0 +1,91 @@
+@model DashboardData
+@{ ViewData["Title"] = "لوحة التحكم"; }
+
+<div class="d-flex flex-wrap justify-content-between align-items-end mb-3 gap-3">
+    <form method="get" class="d-flex flex-wrap gap-2 align-items-end">
+        <div>
+            <label class="form-label mb-1">السنة</label>
+            <input type="number" name="year" value="@Model.Year" class="form-control" style="width:110px" />
+        </div>
+        <div>
+            <label class="form-label mb-1">الشهر</label>
+            <select name="month" class="form-select" style="width:140px">
+                @for (var m = 1; m <= 12; m++)
+                {
+                    <option value="@m" selected="@(m == Model.Month)">@m</option>
+                }
+            </select>
+        </div>
+        <div>
+            <label class="form-label mb-1">تاريخ الإحصاء اليومي</label>
+            <input type="date" name="date" value="@Model.StatDate.ToString("yyyy-MM-dd")" class="form-control" />
+        </div>
+        <button class="btn btn-primary">عرض</button>
+    </form>
+    <div class="d-flex flex-wrap gap-2">
+        <a class="btn btn-outline-primary" asp-controller="Employees" asp-action="Index">الموظفون</a>
+        <a class="btn btn-outline-primary" asp-controller="Import" asp-action="Index">استيراد البصمة</a>
+        <a class="btn btn-outline-primary" asp-controller="Attendance" asp-action="Index">الحضور اليومي</a>
+        <a class="btn btn-outline-primary" asp-controller="Payroll" asp-action="Index">الرواتب</a>
+        <a class="btn btn-outline-primary" asp-controller="Reports" asp-action="Index">التقارير</a>
+    </div>
+</div>
+
+<div class="row g-3 mb-3">
+    <div class="col-6 col-md-3">
+        <div class="stat-card">
+            <div class="label">الموظفون النشطون</div>
+            <div class="value">@Model.ActiveEmployees</div>
+        </div>
+    </div>
+    <div class="col-6 col-md-3">
+        <div class="stat-card">
+            <div class="label">الحاضرون (@Model.StatDate.ToString("yyyy-MM-dd"))</div>
+            <div class="value text-success">@Model.Present</div>
+        </div>
+    </div>
+    <div class="col-6 col-md-3">
+        <div class="stat-card">
+            <div class="label">الغائبون</div>
+            <div class="value text-danger">@Model.Absent</div>
+        </div>
+    </div>
+    <div class="col-6 col-md-3">
+        <div class="stat-card">
+            <div class="label">المتأخرون</div>
+            <div class="value text-warning">@Model.Late</div>
+        </div>
+    </div>
+</div>
+
+<div class="row g-3">
+    <div class="col-6 col-md-3">
+        <div class="stat-card">
+            <div class="label">إجمالي ساعات الإضافي (الشهر)</div>
+            <div class="value">@Model.OvertimeHours.ToString("0.00")</div>
+        </div>
+    </div>
+    <div class="col-6 col-md-3">
+        <div class="stat-card">
+            <div class="label">إجمالي الخصومات (الشهر)</div>
+            <div class="value text-danger">@Model.TotalDeductions.ToString("#,##0.00")</div>
+        </div>
+    </div>
+    <div class="col-6 col-md-3">
+        <div class="stat-card">
+            <div class="label">إجمالي السلف (الشهر)</div>
+            <div class="value text-danger">@Model.TotalLoans.ToString("#,##0.00")</div>
+        </div>
+    </div>
+    <div class="col-6 col-md-3">
+        <div class="stat-card">
+            <div class="label">إجمالي صافي الرواتب (الشهر)</div>
+            <div class="value">@Model.TotalNetPayroll.ToString("#,##0.00")</div>
+        </div>
+    </div>
+</div>
+
+<div class="mt-3 text-muted small">
+    حالات تحتاج مراجعة (@Model.StatDate.ToString("yyyy-MM-dd")): <strong>@Model.NeedsReview</strong> —
+    إجازات: <strong>@Model.OnLeave</strong>
+</div>

@@ -1,0 +1,45 @@
+@model List<PayrollRun>
+@{ ViewData["Title"] = "كشوف الرواتب"; }
+<div class="card mb-3">
+    <div class="card-header fw-bold">توليد كشف رواتب شهري</div>
+    <div class="card-body">
+        <form asp-action="Generate" method="post" class="row g-2 align-items-end">
+            <div class="col-md-3"><label class="form-label">السنة</label><input type="number" name="year" value="@DateTime.Today.Year" class="form-control" /></div>
+            <div class="col-md-3"><label class="form-label">الشهر</label><input type="number" name="month" min="1" max="12" value="@DateTime.Today.Month" class="form-control" /></div>
+            <div class="col-md-3"><button class="btn btn-success">توليد الكشف</button></div>
+            <div class="col-md-3 text-muted small">لا يمكن إعادة احتساب كشف معتمد قبل إلغاء اعتماده.</div>
+        </form>
+    </div>
+</div>
+<div class="card">
+    <div class="table-responsive">
+        <table class="table table-striped mb-0">
+            <thead><tr><th>الشهر</th><th>الإصدار</th><th>الحالة</th><th>عدد الموظفين</th><th>صافي الإجمالي</th><th>إضافي</th><th>خصومات</th><th>أُنشئ</th><th></th></tr></thead>
+            <tbody>
+            @foreach (var r in Model)
+            {
+                <tr>
+                    <td>@r.Year-@r.Month.ToString("00")</td>
+                    <td>@r.Version</td>
+                    <td>
+                        @if (r.Status == PayrollStatus.Approved) { <span class="badge bg-success">معتمد</span> }
+                        else if (r.Status == PayrollStatus.Cancelled) { <span class="badge bg-secondary">ملغى</span> }
+                        else { <span class="badge bg-warning text-dark">محسوب</span> }
+                    </td>
+                    <td>@r.Items.Count</td>
+                    <td>@r.TotalNet.ToString("#,##0.00")</td>
+                    <td>@r.TotalOvertime.ToString("#,##0.00")</td>
+                    <td>@r.TotalDeductions.ToString("#,##0.00")</td>
+                    <td>@(r.ComputedAt?.ToLocalTime().ToString("yyyy-MM-dd HH:mm"))</td>
+                    <td class="text-nowrap">
+                        <a class="btn btn-sm btn-outline-primary" asp-action="Details" asp-route-id="@r.Id">تفاصيل</a>
+                        <a class="btn btn-sm btn-outline-success" asp-action="Export" asp-route-id="@r.Id">Excel</a>
+                    </td>
+                </tr>
+            }
+            @if (!Model.Any())
+            { <tr><td colspan="9" class="text-center text-muted py-4">لا توجد كشوف رواتب</td></tr> }
+            </tbody>
+        </table>
+    </div>
+</div>

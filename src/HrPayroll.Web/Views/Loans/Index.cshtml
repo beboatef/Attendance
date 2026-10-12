@@ -1,0 +1,36 @@
+@model List<Loan>
+@{ ViewData["Title"] = "السلف"; }
+<div class="d-flex justify-content-between mb-3">
+    <h5 class="mb-0">سلف الموظفين</h5>
+    <a class="btn btn-success" asp-action="Create">تسجيل سلفة</a>
+</div>
+<div class="card">
+    <div class="table-responsive">
+        <table class="table table-striped mb-0">
+            <thead><tr><th>الموظف</th><th>التاريخ</th><th>المبلغ</th><th>شهر الخصم</th><th>أقساط</th><th>الحالة</th><th>مطبّقة في كشف؟</th><th>ملاحظات</th><th></th></tr></thead>
+            <tbody>
+            @foreach (var l in Model)
+            {
+                <tr>
+                    <td>@l.Employee?.FullName (@l.Employee?.EmployeeCode)</td>
+                    <td>@l.LoanDate.ToString("yyyy-MM-dd")</td>
+                    <td>@l.Amount.ToString("#,##0.00")</td>
+                    <td>@l.DeductionYear-@l.DeductionMonth.ToString("00")</td>
+                    <td>@l.Installments</td>
+                    <td>@(l.Status == ApprovalStatus.Approved ? "معتمدة" : l.Status == ApprovalStatus.Rejected ? "مرفوضة" : "قيد المراجعة")</td>
+                    <td>@(l.PayrollItemId.HasValue ? "نعم" : "لا")</td>
+                    <td>@l.Notes</td>
+                    <td class="text-nowrap">
+                        <a class="btn btn-sm btn-outline-primary" asp-action="Edit" asp-route-id="@l.Id">تعديل</a>
+                        <form asp-action="Approve" asp-route-id="@l.Id" method="post" class="d-inline">
+                            <button class="btn btn-sm btn-outline-success" type="submit">اعتماد/إلغاء</button>
+                        </form>
+                    </td>
+                </tr>
+            }
+            @if (!Model.Any())
+            { <tr><td colspan="9" class="text-center text-muted py-4">لا توجد سلف</td></tr> }
+            </tbody>
+        </table>
+    </div>
+</div>

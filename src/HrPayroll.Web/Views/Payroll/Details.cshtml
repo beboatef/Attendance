@@ -1,0 +1,59 @@
+@model PayrollRun
+@{
+    ViewData["Title"] = "تفاصيل كشف الرواتب";
+    var items = ViewBag.Items as List<PayrollItem> ?? new List<PayrollItem>();
+}
+<div class="card mb-3">
+    <div class="card-header fw-bold d-flex justify-content-between">
+        <span>كشف @Model.Year-@Model.Month.ToString("00") — إصدار @Model.Version</span>
+        <span>
+            @if (Model.Status == PayrollStatus.Approved) { <span class="badge bg-success">معتمد</span> }
+            else if (Model.Status == PayrollStatus.Cancelled) { <span class="badge bg-secondary">ملغى</span> }
+            else { <span class="badge bg-warning text-dark">محسوب</span> }
+        </span>
+    </div>
+    <div class="card-body row">
+        <div class="col-md-3"><strong>عدد الموظفين:</strong> @items.Count</div>
+        <div class="col-md-3"><strong>صافي الإجمالي:</strong> @Model.TotalNet.ToString("#,##0.00")</div>
+        <div class="col-md-3"><strong>إجمالي الإضافي:</strong> @Model.TotalOvertime.ToString("#,##0.00")</div>
+        <div class="col-md-3"><strong>إجمالي الخصومات:</strong> @Model.TotalDeductions.ToString("#,##0.00")</div>
+    </div>
+    <div class="card-footer d-flex gap-2">
+        @if (Model.Status != PayrollStatus.Approved)
+        {
+            <form asp-action="Approve" asp-route-id="@Model.Id" method="post"><button class="btn btn-success">اعتماد الكشف</button></form>
+        }
+        else
+        {
+            <form asp-action="Cancel" asp-route-id="@Model.Id" method="post"><button class="btn btn-warning">إلغاء الاعتماد</button></form>
+        }
+        <a class="btn btn-outline-success" asp-action="Export" asp-route-id="@Model.Id">تصدير Excel</a>
+    </div>
+</div>
+
+<div class="card">
+    <div class="table-responsive">
+        <table class="table table-striped table-sm mb-0">
+            <thead>
+            <tr>
+                <th>الكود</th><th>الاسم</th><th>الأساسي</th><th>تأخير (د)</th><th>خصم التأخير</th>
+                <th>إضافي (س)</th><th>قيمة الإضافي</th><th>السلف</th><th>الخصومات</th><th>خصومات أخرى</th><th>الصافي</th>
+            </tr>
+            </thead>
+            <tbody>
+            @foreach (var i in items)
+            {
+                <tr>
+                    <td>@i.EmployeeCode</td><td>@i.EmployeeName</td><td>@i.BasicSalary.ToString("#,##0.00")</td>
+                    <td>@i.LateMinutes</td><td>@i.LateDeduction.ToString("#,##0.00")</td>
+                    <td>@i.ApprovedOvertimeHours</td><td>@i.OvertimeValue.ToString("#,##0.00")</td>
+                    <td>@i.LoansTotal.ToString("#,##0.00")</td><td>@i.DeductionsTotal.ToString("#,##0.00")</td>
+                    <td>@i.OtherDeductions.ToString("#,##0.00")</td>
+                    <td class="fw-bold">@i.NetSalary.ToString("#,##0.00")</td>
+                </tr>
+            }
+            </tbody>
+        </table>
+    </div>
+</div>
+<a class="btn btn-secondary mt-3" asp-action="Index">عودة</a>

@@ -1,0 +1,63 @@
+@model ImportPreviewViewModel
+@{ ViewData["Title"] = "معاينة الاستيراد"; }
+<div class="card mb-3">
+    <div class="card-header fw-bold">معاينة الملف: @Model.FileName</div>
+    <div class="card-body">
+        <div class="row mb-3">
+            <div class="col-md-3"><strong>نوع الملف المكتشف:</strong> @Model.FormatName</div>
+            <div class="col-md-3"><strong>إجمالي الصفوف:</strong> @Model.Analysis.Total</div>
+            <div class="col-md-2 text-success"><strong>ناجح:</strong> @Model.Analysis.SuccessCount</div>
+            <div class="col-md-2 text-warning"><strong>مكرر:</strong> @Model.Analysis.DuplicateCount</div>
+            <div class="col-md-2 text-danger"><strong>غير صالح:</strong> @Model.Analysis.InvalidCount</div>
+        </div>
+        @if (Model.UsedFallback)
+        {
+            <div class="alert alert-warning py-2">لم يتم التعرف على أسماء الأعمدة بشكل مؤكد، تم استخدام الربط الاحتياطي بالترتيب.</div>
+        }
+        @if (Model.Analysis.UnknownEmployeeCount > 0)
+        {
+            <div class="alert alert-danger py-2">
+                يوجد @Model.Analysis.UnknownEmployeeCount سجل بأكواد موظفين غير مسجلة، لن يتم استيرادها.
+            </div>
+        }
+        <div class="mb-2"><strong>الأعمدة المكتشفة:</strong> @string.Join(" | ", Model.Headers)</div>
+
+        <div class="table-responsive">
+            <table class="table table-sm table-bordered">
+                <thead>
+                <tr>
+                    <th>رقم الصف</th><th>الجهاز</th><th>الكود</th><th>الاسم</th>
+                    <th>النوع</th><th>الوقت الأصلي</th><th>الوقت المحوّل</th><th>الحالة</th><th>ملاحظة</th>
+                </tr>
+                </thead>
+                <tbody>
+                @foreach (var r in Model.Analysis.Preview)
+                {
+                    var cls = r.Status == HrPayroll.Domain.Enums.ImportRowStatus.Success ? "table-success"
+                        : r.Status == HrPayroll.Domain.Enums.ImportRowStatus.Duplicate ? "table-warning" : "table-danger";
+                    <tr class="@cls">
+                        <td>@r.RowNumber</td>
+                        <td>@r.DeviceId</td>
+                        <td>@r.DeviceEmployeeCode</td>
+                        <td>@r.Name</td>
+                        <td>@r.AttType</td>
+                        <td>@r.RawPunchTime</td>
+                        <td>@(r.PunchTime?.ToString("yyyy-MM-dd HH:mm:ss"))</td>
+                        <td>@r.Status</td>
+                        <td>@r.Message</td>
+                    </tr>
+                }
+                </tbody>
+            </table>
+            <p class="text-muted small">يتم عرض أول 20 سجل فقط للمعاينة.</p>
+        </div>
+    </div>
+    <div class="card-footer d-flex gap-2">
+        <form asp-action="Confirm" method="post">
+            <input type="hidden" name="token" value="@Model.Token" />
+            <input type="hidden" name="fileName" value="@Model.FileName" />
+            <button class="btn btn-success" type="submit">تأكيد الاستيراد (@Model.Analysis.SuccessCount سجل)</button>
+        </form>
+        <a class="btn btn-secondary" asp-action="Index">إلغاء</a>
+    </div>
+</div>

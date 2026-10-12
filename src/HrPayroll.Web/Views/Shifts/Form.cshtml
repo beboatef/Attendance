@@ -1,0 +1,56 @@
+@model Shift
+@{ ViewData["Title"] = Model.Id == 0 ? "إضافة وردية" : "تعديل وردية"; }
+<div class="card">
+    <div class="card-body">
+        <form asp-action="@(Model.Id == 0 ? "Create" : "Edit")" asp-route-id="@Model.Id" method="post" class="row g-3">
+            <div asp-validation-summary="ModelOnly" class="text-danger"></div>
+            <div class="col-md-6">
+                <label asp-for="ShiftName" class="form-label">اسم الوردية</label>
+                <input asp-for="ShiftName" class="form-control" required />
+            </div>
+            <div class="col-md-3">
+                <label asp-for="StartTime" class="form-label">وقت البداية</label>
+                <input asp-for="StartTime" type="time" value="@Model.StartTime.ToString(@"hh\:mm")" class="form-control" />
+            </div>
+            <div class="col-md-3">
+                <label asp-for="EndTime" class="form-label">وقت النهاية</label>
+                <input asp-for="EndTime" type="time" value="@Model.EndTime.ToString(@"hh\:mm")" class="form-control" />
+            </div>
+            <div class="col-md-3">
+                <label asp-for="GraceMinutes" class="form-label">دقائق السماح</label>
+                <input asp-for="GraceMinutes" type="number" class="form-control" />
+                <span asp-validation-for="GraceMinutes" class="text-danger"></span>
+            </div>
+            <div class="col-md-3">
+                <label asp-for="OvertimeMultiplier" class="form-label">معامل الإضافي</label>
+                <input asp-for="OvertimeMultiplier" type="number" step="0.01" class="form-control" />
+                <span asp-validation-for="OvertimeMultiplier" class="text-danger"></span>
+            </div>
+            <div class="col-md-3">
+                <label asp-for="OvertimeMinMinutes" class="form-label">أقل دقائق إضافي معتبرة</label>
+                <input asp-for="OvertimeMinMinutes" type="number" class="form-control" />
+            </div>
+            <div class="col-md-3 d-flex align-items-end">
+                <div class="form-check">
+                    <input asp-for="IsOvernight" class="form-check-input" />
+                    <label asp-for="IsOvernight" class="form-check-label">وردية ليلية (تعبر منتصف الليل)</label>
+                </div>
+            </div>
+            <div class="col-md-3 d-flex align-items-end">
+                <div class="form-check">
+                    <input asp-for="IsActive" class="form-check-input" />
+                    <label asp-for="IsActive" class="form-check-label">نشطة</label>
+                </div>
+            </div>
+            <div class="col-12">
+                <label asp-for="Notes" class="form-label">ملاحظات</label>
+                <textarea asp-for="Notes" class="form-control" rows="2"></textarea>
+            </div>
+            <div class="col-12 d-flex gap-2">
+                <button class="btn btn-primary">حفظ</button>
+                <a class="btn btn-secondary" asp-action="Index">إلغاء</a>
+            </div>
+        </form>
+    </div>
+</div>
+@section Scripts { <partial name="_ValidationScriptsPartial" /> }

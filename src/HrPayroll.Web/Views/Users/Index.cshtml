@@ -1,0 +1,32 @@
+@model List<ApplicationUser>
+@{
+    ViewData["Title"] = "المستخدمون والصلاحيات";
+    var rows = ViewBag.Roles as List<(ApplicationUser User, string Roles)> ?? new List<(ApplicationUser, string)>();
+}
+<div class="d-flex justify-content-between mb-3">
+    <h5 class="mb-0">المستخدمون</h5>
+    <a class="btn btn-success" asp-action="Create">إضافة مستخدم</a>
+</div>
+<div class="card">
+    <div class="table-responsive">
+        <table class="table table-striped mb-0">
+            <thead><tr><th>البريد</th><th>الاسم</th><th>الأدوار</th><th>الحالة</th><th></th></tr></thead>
+            <tbody>
+            @foreach (var r in rows)
+            {
+                <tr>
+                    <td>@r.User.Email</td>
+                    <td>@r.User.FullName</td>
+                    <td>@r.Roles</td>
+                    <td>@(r.User.IsActive ? "نشط" : "معطّل")</td>
+                    <td>
+                        <form asp-action="ToggleActive" asp-route-id="@r.User.Id" method="post" class="d-inline">
+                            <button class="btn btn-sm btn-outline-warning" type="submit">@(r.User.IsActive ? "تعطيل" : "تفعيل")</button>
+                        </form>
+                    </td>
+                </tr>
+            }
+            </tbody>
+        </table>
+    </div>
+</div>

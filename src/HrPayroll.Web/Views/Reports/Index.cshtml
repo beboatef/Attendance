@@ -1,0 +1,52 @@
+@{ ViewData["Title"] = "التقارير وتصدير Excel"; }
+<div class="card mb-3">
+    <div class="card-header fw-bold">تحديد الفترة والفلاتر</div>
+    <div class="card-body">
+        <form method="get" id="reportForm" class="row g-3">
+            <div class="col-md-3">
+                <label class="form-label">من تاريخ</label>
+                <input type="date" name="from" value="@ViewBag.From" class="form-control" />
+            </div>
+            <div class="col-md-3">
+                <label class="form-label">إلى تاريخ</label>
+                <input type="date" name="to" value="@ViewBag.To" class="form-control" />
+            </div>
+            <div class="col-md-3">
+                <label class="form-label">الموظف (اختياري)</label>
+                <select name="employeeId" asp-items="ViewBag.Employees" class="form-select"><option value="">الكل</option></select>
+            </div>
+            <div class="col-md-3">
+                <label class="form-label">الوردية (اختياري)</label>
+                <select name="shiftId" asp-items="ViewBag.Shifts" class="form-select"><option value="">الكل</option></select>
+            </div>
+        </form>
+    </div>
+</div>
+
+<div class="card">
+    <div class="card-header fw-bold">التصدير إلى Excel</div>
+    <div class="card-body d-flex flex-wrap gap-2">
+        <button class="btn btn-success" data-action="@Url.Action("ExportFull")">تصدير شامل (كل الأوراق)</button>
+        <button class="btn btn-outline-primary" data-action="@Url.Action("ExportRaw")">البصمات الخام</button>
+        <button class="btn btn-outline-primary" data-action="@Url.Action("ExportEntries")">سجل الدخول</button>
+        <button class="btn btn-outline-primary" data-action="@Url.Action("ExportExits")">سجل الخروج</button>
+        <button class="btn btn-outline-primary" data-action="@Url.Action("ExportDaily")">الحضور اليومي</button>
+        <button class="btn btn-outline-secondary" data-action="@Url.Action("ExportPayroll")">كشف الرواتب (حسب الشهر)</button>
+    </div>
+    <div class="card-footer text-muted small">
+        التصدير الشامل ينشئ ملفًا واحدًا يحتوي: Raw Punches, Entry, Exit, Daily Attendance, Late Report,
+        Overtime Report, Payroll, Exceptions.
+    </div>
+</div>
+
+@section Scripts {
+<script>
+    document.querySelectorAll('[data-action]').forEach(function (btn) {
+        btn.addEventListener('click', function () {
+            var form = document.getElementById('reportForm');
+            var params = new URLSearchParams(new FormData(form));
+            window.location = btn.getAttribute('data-action') + '?' + params.toString();
+        });
+    });
+</script>
+}

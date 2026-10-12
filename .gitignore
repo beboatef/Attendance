@@ -1,0 +1,9 @@
+bin/
+obj/
+*.user
+.vs/
+.vscode/
+*.db
+*.db-shm
+*.db-wal
+appsettings.Production.json

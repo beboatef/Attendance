@@ -1,0 +1,36 @@
+@model ImportBatch
+@{
+    ViewData["Title"] = "تفاصيل عملية الاستيراد";
+    var punches = ViewBag.Punches as List<RawPunch> ?? new List<RawPunch>();
+}
+<div class="card mb-3">
+    <div class="card-header fw-bold">@Model.FileName</div>
+    <div class="card-body row">
+        <div class="col-md-3"><strong>النوع:</strong> @Model.DetectedFormat</div>
+        <div class="col-md-3"><strong>وقت الاستيراد:</strong> @Model.ImportedAt.ToLocalTime().ToString("yyyy-MM-dd HH:mm")</div>
+        <div class="col-md-3"><strong>المستخدم:</strong> @Model.ImportedByName</div>
+        <div class="col-md-3"><strong>الإجمالي:</strong> @Model.TotalRows</div>
+        <div class="col-md-3 text-success"><strong>ناجح:</strong> @Model.SuccessRows</div>
+        <div class="col-md-3 text-warning"><strong>مكرر:</strong> @Model.DuplicateRows</div>
+        <div class="col-md-3 text-danger"><strong>غير صالح:</strong> @Model.InvalidRows</div>
+        <div class="col-md-3 text-danger"><strong>موظف غير معروف:</strong> @Model.UnknownEmployeeRows</div>
+    </div>
+</div>
+<div class="card">
+    <div class="card-header fw-bold">أول 100 بصمة مستوردة</div>
+    <div class="table-responsive">
+        <table class="table table-sm table-striped mb-0">
+            <thead><tr><th>#</th><th>الجهاز</th><th>الكود</th><th>النوع</th><th>الوقت</th><th>النص الأصلي</th></tr></thead>
+            <tbody>
+            @foreach (var p in punches)
+            {
+                <tr>
+                    <td>@p.RowNumber</td><td>@p.DeviceId</td><td>@p.DeviceEmployeeCode</td>
+                    <td>@p.AttType</td><td>@p.PunchTime.ToString("yyyy-MM-dd HH:mm:ss")</td><td>@p.RawPunchTimeText</td>
+                </tr>
+            }
+            </tbody>
+        </table>
+    </div>
+</div>
+<a class="btn btn-secondary mt-3" asp-action="Index">عودة</a>

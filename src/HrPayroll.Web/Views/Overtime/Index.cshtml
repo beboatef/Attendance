@@ -1,0 +1,47 @@
+@model List<OvertimeApproval>
+@{
+    ViewData["Title"] = "اعتماد الإضافي";
+    var first = (DateTime)ViewBag.First; var last = (DateTime)ViewBag.Last;
+}
+<div class="card mb-3">
+    <div class="card-body">
+        <form asp-action="Generate" method="post" class="row g-2 align-items-end">
+            <div class="col-md-3"><label class="form-label">من تاريخ</label><input type="date" name="from" value="@first.ToString("yyyy-MM-dd")" class="form-control" /></div>
+            <div class="col-md-3"><label class="form-label">إلى تاريخ</label><input type="date" name="to" value="@last.ToString("yyyy-MM-dd")" class="form-control" /></div>
+            <div class="col-md-3"><button class="btn btn-success">توليد اعتمادات من الحضور المحسوب</button></div>
+            <div class="col-md-3 text-muted small">يتم الاحتفاظ بالإضافي المحسوب ويبقى الاعتماد اليدوي مطلوبًا قبل إضافته للراتب.</div>
+        </form>
+    </div>
+</div>
+<div class="card">
+    <div class="table-responsive">
+        <table class="table table-striped mb-0">
+            <thead><tr><th>الموظف</th><th>الفترة</th><th>محسوب (ساعة)</th><th>معتمد (ساعة)</th><th>المعامل</th><th>الحالة</th><th>في كشف؟</th><th>اعتماد</th></tr></thead>
+            <tbody>
+            @foreach (var o in Model)
+            {
+                <tr>
+                    <td>@o.Employee?.FullName (@o.Employee?.EmployeeCode)</td>
+                    <td>@o.PeriodStart.ToString("yyyy-MM-dd") → @o.PeriodEnd.ToString("yyyy-MM-dd")</td>
+                    <td>@o.CalculatedHours</td>
+                    <td>@o.ApprovedHours</td>
+                    <td>@o.OvertimeMultiplier</td>
+                    <td>@(o.Status == ApprovalStatus.Approved ? "معتمد" : o.Status == ApprovalStatus.Rejected ? "مرفوض" : "قيد المراجعة")</td>
+                    <td>@(o.PayrollItemId.HasValue ? "نعم" : "لا")</td>
+                    <td class="text-nowrap">
+                        <form asp-action="Approve" asp-route-id="@o.Id" method="post" class="d-inline d-flex gap-1">
+                            <input type="number" step="0.01" min="0" name="approvedHours" value="@o.ApprovedHours" class="form-control form-control-sm" style="width:100px" />
+                            <button class="btn btn-sm btn-success" type="submit">اعتماد</button>
+                        </form>
+                        <form asp-action="Reject" asp-route-id="@o.Id" method="post" class="d-inline">
+                            <button class="btn btn-sm btn-outline-danger" type="submit">رفض</button>
+                        </form>
+                    </td>
+                </tr>
+            }
+            @if (!Model.Any())
+            { <tr><td colspan="8" class="text-center text-muted py-4">لا توجد سجلات إضافي</td></tr> }
+            </tbody>
+        </table>
+    </div>
+</div>

@@ -1,0 +1,35 @@
+@model List<DailyAttendance>
+@{ ViewData["Title"] = "الاستثناءات والمراجعة"; }
+<div class="alert alert-info py-2">
+    تعرض هذه الصفحة الأيام التي تحتوي بصمة دخول/خروج مفقودة أو تصنيفًا بحاجة لمراجعة بشرية.
+    لا يقوم النظام بافتراض وقت دخول أو خروج عند عدم وجود بصمة.
+</div>
+<div class="card">
+    <div class="table-responsive">
+        <table class="table table-striped mb-0">
+            <thead>
+            <tr><th>الكود</th><th>الاسم</th><th>التاريخ</th><th>الوردية</th><th>دخول</th><th>خروج</th><th>الحالة</th><th>ملاحظة</th><th></th></tr>
+            </thead>
+            <tbody>
+            @foreach (var d in Model)
+            {
+                <tr>
+                    <td>@d.Employee?.EmployeeCode</td>
+                    <td>@d.Employee?.FullName</td>
+                    <td>@d.WorkDate.ToString("yyyy-MM-dd")</td>
+                    <td>@d.Shift?.ShiftName</td>
+                    <td>@(d.CheckInTime?.ToString("HH:mm"))</td>
+                    <td>@(d.CheckOutTime?.ToString("HH:mm"))</td>
+                    <td>@d.Status</td>
+                    <td>@d.Notes</td>
+                    <td><a class="btn btn-sm btn-outline-primary" asp-action="Review" asp-route-id="@d.Id">مراجعة</a></td>
+                </tr>
+            }
+            @if (!Model.Any())
+            {
+                <tr><td colspan="9" class="text-center text-muted py-4">لا توجد استثناءات</td></tr>
+            }
+            </tbody>
+        </table>
+    </div>
+</div>

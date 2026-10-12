@@ -1,0 +1,18 @@
+@model Employee
+@{ ViewData["Title"] = "تفاصيل الموظف"; }
+<div class="card">
+    <div class="card-header fw-bold">@Model.FullName (@Model.EmployeeCode)</div>
+    <div class="card-body">
+        <dl class="row mb-0">
+            <dt class="col-sm-3">كود الجهاز</dt><dd class="col-sm-9">@Model.DeviceEmployeeCode</dd>
+            <dt class="col-sm-3">المسمى الوظيفي</dt><dd class="col-sm-9">@Model.JobTitle</dd>
+            <dt class="col-sm-3">القسم</dt><dd class="col-sm-9">@Model.Department</dd>
+            <dt class="col-sm-3">الوردية</dt><dd class="col-sm-9">@Model.Shift?.ShiftName</dd>
+            <dt class="col-sm-3">الراتب الأساسي</dt><dd class="col-sm-9">@Model.BasicSalary.ToString("#,##0.00")</dd>
+            <dt class="col-sm-3">تاريخ التعيين</dt><dd class="col-sm-9">@Model.HireDate.ToString("yyyy-MM-dd")</dd>
+            <dt class="col-sm-3">الحالة</dt><dd class="col-sm-9">@(Model.IsActive ? "نشط" : "معطّل")</dd>
+            <dt class="col-sm-3">ملاحظات</dt><dd class="col-sm-9">@Model.Notes</dd>
+        </dl>
+    </div>
+</div>
+<a class="btn btn-secondary mt-3" asp-action="Index">عودة</a>

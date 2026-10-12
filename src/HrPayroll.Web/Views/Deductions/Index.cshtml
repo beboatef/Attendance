@@ -1,0 +1,35 @@
+@model List<Deduction>
+@{ ViewData["Title"] = "الخصومات والجزاءات"; }
+<div class="d-flex justify-content-between mb-3">
+    <h5 class="mb-0">الخصومات والجزاءات</h5>
+    <a class="btn btn-success" asp-action="Create">تسجيل خصم</a>
+</div>
+<div class="card">
+    <div class="table-responsive">
+        <table class="table table-striped mb-0">
+            <thead><tr><th>الموظف</th><th>التاريخ</th><th>المبلغ</th><th>السبب</th><th>الشهر</th><th>الحالة</th><th>مطبّق؟</th><th></th></tr></thead>
+            <tbody>
+            @foreach (var d in Model)
+            {
+                <tr>
+                    <td>@d.Employee?.FullName (@d.Employee?.EmployeeCode)</td>
+                    <td>@d.DeductionDate.ToString("yyyy-MM-dd")</td>
+                    <td>@d.Amount.ToString("#,##0.00")</td>
+                    <td>@d.Reason</td>
+                    <td>@d.Year-@d.Month.ToString("00")</td>
+                    <td>@(d.Status == ApprovalStatus.Approved ? "معتمد" : d.Status == ApprovalStatus.Rejected ? "مرفوض" : "قيد المراجعة")</td>
+                    <td>@(d.PayrollItemId.HasValue ? "نعم" : "لا")</td>
+                    <td class="text-nowrap">
+                        <a class="btn btn-sm btn-outline-primary" asp-action="Edit" asp-route-id="@d.Id">تعديل</a>
+                        <form asp-action="Approve" asp-route-id="@d.Id" method="post" class="d-inline">
+                            <button class="btn btn-sm btn-outline-success" type="submit">اعتماد/إلغاء</button>
+                        </form>
+                    </td>
+                </tr>
+            }
+            @if (!Model.Any())
+            { <tr><td colspan="8" class="text-center text-muted py-4">لا توجد خصومات</td></tr> }
+            </tbody>
+        </table>
+    </div>
+</div>
