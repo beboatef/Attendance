@@ -15,9 +15,10 @@
 | قاعدة البيانات | **SQL Server بعيد** (`db73231.public.databaseasp.net`) — ويعمل أيضًا مع LocalDB / Express / Full |
 | واجهة المستخدم | Bootstrap 5 **RTL** + واجهة عربية |
 | تصدير Excel | ClosedXML |
+| تصدير PDF | QuestPDF (مع خط عربي `Cairo.ttf`) |
 | قراءة ملفات البصمة | ExcelDataReader (xls/xlsx) + قارئ مخصص لـ Excel 2003 XML و CSV و HTML |
 | المصادقة | ASP.NET Core Identity مع أدوار (Admin / HR / Accountant / Viewer) |
-| الاختبارات | xUnit (28 اختبارًا) |
+| الاختبارات | xUnit (111 اختبارًا) |
 
 ## 2) هيكل المشروع
 
@@ -26,19 +27,24 @@ HrPayroll.sln
 src/
   HrPayroll.Domain/          الكيانات + Enums + منطق الحساب النقي (بدون قاعدة بيانات)
     Enums/                   AttendanceStatus, PunchDirection, PayrollStatus ...
-    Entities/                Employee, Shift, RawPunch, AttendanceEvent, DailyAttendance,
-                             Loan, Deduction, OvertimeApproval, PayrollRun, PayrollItem,
-                             ImportBatch, AuditLog, AppSetting, LeaveRequest ...
-    Services/                AttendanceCalculator, PunchClassifier, PayrollCalculator
+    Entities/                Employee, Department, JobTitle, Shift, EmployeeShiftAssignment,
+                             RawPunch, AttendanceEvent, DailyAttendance, AttendanceCorrection,
+                             PublicHoliday, LeaveRequest, Loan, Deduction, OvertimeApproval,
+                             PayrollRun, PayrollItem, PayrollAdjustment, ImportBatch, AuditLog,
+                             AppSetting, ApplicationUser
+    Services/                AttendanceCalculator, PunchClassifier, PayrollCalculator,
+                             ShiftDetector, PunchWorkDateResolver
     ValueObjects/            ShiftWindow (حساب الورديات الليلية)
   HrPayroll.Infrastructure/  EF Core + الخدمات + الاستيراد + التصدير
     Persistence/             AppDbContext + Configurations + Migrations
-    Import/                  AttendanceFileParser, ColumnMapper, PunchTimeParser,
-                             AttendanceImportService
-    Services/                SettingsService, ShiftResolver, AttendanceProcessingService,
-                             PayrollService, ExcelExportService, DashboardService, AuditService
+    Import/                  AttendanceFileParser, ColumnMapper, AttendanceImportService,
+                             EmployeeImportService, EmployeeColumnMapper
+    Services/                SettingsService, ShiftService, ShiftResolver,
+                             AttendanceProcessingService, AttendanceCorrectionService,
+                             LeaveService, PayrollService, ReportService,
+                             ExcelExportService, PdfExportService, DashboardService, AuditService
     Seed/                    DbSeeder (الورديات والإعدادات والمستخدم المدير)
-  HrPayroll.Web/             تطبيق MVC: Controllers + Views (RTL) + Program.cs
+  HrPayroll.Web/             تطبيق MVC: Controllers + ViewModels + Views (RTL) + Program.cs
 tests/
   HrPayroll.Tests/           اختبارات آلية لكل الحالات المطلوبة
 ```
@@ -288,18 +294,21 @@ dotnet run --project src/HrPayroll.Web
 السماح (Grace): إذا حضر الموظف حتى نهاية السماح فالتأخير صفر، وإذا تجاوزه
 **يُلغى السماح بالكامل** ويُحسب التأخير من بداية الوردية:
 
-| الحضور (وردية 07:00، سماح 30) | التأخير |
+| الحضور (وردية 07:00، سماح دخول 30) | التأخير |
 |---|---|
-| 07:15 | 0 |
+| 07:10 | 0 |
 | 07:30 | 0 |
 | 07:31 | 31 دقيقة |
 | 08:15 | 75 دقيقة |
 
-الإضافي يبدأ من **وقت نهاية الوردية الرسمية** دون خصم السماح، وبدون قيم سالبة:
-نهاية 15:00 وانصراف 16:00 ⇒ 60 دقيقة. وردية ليلية 23:00→07:00 وانصراف 08:00 من
-اليوم التالي ⇒ 60 دقيقة (معالجة انتقال التاريخ).
+سماح الخروج متماثل مع سماح الدخول: انصراف 15:30 ⇒ إضافي 0، وانصراف 15:35 ⇒ 35 دقيقة،
+وانصراف 16:00 ⇒ 60 دقيقة؛ أي أن الإضافي يُحسب من **وقت نهاية الوردية الرسمية دون خصم
+السماح** وبدون قيم سالبة. وردية ليلية 23:00→07:00 وانصراف 08:00 من اليوم التالي
+⇒ 60 دقيقة (معالجة انتقال التاريخ).
 
-سماح الوردية الأولى **لا يُطبّق تلقائيًا** على بقية الورديات (كل وردية لها سماحها).
+سماح الوردية الأولى **لا يُطبّق تلقائيًا** على بقية الورديات (كل وردية لها سماحها، ويوجد
+سماح افتراضي عام في الإعدادات يُستخدم عند عدم ضبط سماح الوردية).
+
 الاعتماد اليدوي للإضافي مطلوب افتراضيًا قبل إضافته للراتب، ويُحفظ المحسوب والمعتمد
 في `OvertimeApprovals`.
 
@@ -329,43 +338,49 @@ dotnet run --project src/HrPayroll.Web
 
 ## 13) نظام الرواتب
 
-صافي الراتب = الراتب الأساسي + قيمة الإضافي − خصم التأخير − السلف − الخصومات −
-أي خصومات أخرى معتمدة.
+صافي الراتب = الراتب الأساسي + قيمة الإضافي + المكافآت والبدلات والأيام الإضافية −
+خصم التأخير − خصم الغياب − الإجازات بدون أجر − السلف − الخصومات − أي خصومات أخرى معتمدة.
 
 القيم الافتراضية (قابلة للتعديل من الإعدادات):
 
 - قيمة الساعة = الراتب الأساسي ÷ 240 (30 يومًا × 8 ساعات).
-- قيمة الإضافي = ساعات الإضافي المعتمدة × قيمة الساعة × معامل الإضافي.
-- تُقرَّب القيم المالية إلى منزلتين عشريتين.
+- قيمة الإضافي = ساعات الإضافي المعتمدة × قيمة الساعة × معامل الإضافي (= 1 افتراضيًا).
+- تُقرَّب القيم المالية إلى منزلتين عشريتين، والتقريب النهائي للإضافي مرة واحدة على إجمالي الشهر.
 
-الغياب والتأمينات والضرائب **لا تُخصم** إلا بسياسة معتمدة صريحة
-(`Payroll.AbsenceDeductionEnabled` معطّلة افتراضيًا).
+خصم الغياب وخصم الإجازة بدون أجر **مُفعَّلان افتراضيًا**
+(`Payroll.AbsenceDeductionEnabled` و`Payroll.UnpaidLeaveDeductionEnabled`)، وسعر اليوم =
+الأجر اليومي، ويمكن تعطيلهما من شاشة الإعدادات. التأمينات والضرائب لم تُنفَّذ كمكوّن
+مستقل، ولا تُخصم أي قيمة غير مُفعَّلة صراحةً.
 
 - لكل موظف سطر مستقل في كل شهر (`PayrollItem`).
-- لكل إصدار سجل مستقل مع رقم إصدار وحالة (`Draft/Computed/Approved/Cancelled`).
-- **لا يمكن إعادة احتساب كشف معتمد** قبل إلغاء الاعتماد بصلاحية Accountant/Admin.
+- لكل إصدار سجل مستقل مع رقم إصدار وحالة
+  (`Draft / Computed / Approved / Locked / Reopened / Cancelled`).
+- **لا يمكن إعادة احتساب كشف معتمد أو مقفل** قبل إلغاء الاعتماد أو إعادة الفتح بسبب
+  مُسجَّل بصلاحية Accountant/Admin، وكل خطوة تُكتب في `AuditLogs`.
 
-## 14) تصدير Excel
+## 14) التصدير (Excel و PDF)
 
-زر **Export Excel** في شاشة **التقارير** مع تحديد الفترة والموظف والوردية.
-يُنشئ الملف الواحد الأوراق التالية:
+زر **Excel** في شاشة **التقارير** بعد تحديد الفترة والقسم والموظف والوردية.
+الملف الشامل (**ملف شامل**) يُنشئ مصنّفًا واحدًا يحوي الأوراق الثمانية التالية بنفس الترتيب:
 
-1. `Raw Punches`
-2. `Entry`
-3. `Exit`
-4. `Daily Attendance`
-5. `Late Report`
-6. `Overtime Report`
-7. `Payroll`
-8. `Exceptions`
+1. `Raw Punches` — البصمات كما وردت من الجهاز: كود الجهاز، كود الموظف، الاسم، رقم الجهاز، نوع البصمة، وقت البصمة، النص الأصلي، رقم الصف، والموظف مسجل؟
+2. `Entry` — البصمات المصنّفة دخولًا: كود الموظف، الاسم، التاريخ، الوقت، رقم الجهاز، **رقم السجل الأصلي** في `RawPunches`، حالة التصنيف، مصدر التصنيف، ملاحظة.
+3. `Exit` — نفس أعمدة Entry للبصمات المصنّفة خروجًا.
+4. `Daily Attendance` — ملخص اليوم لكل موظف: القسم، المسمى، الوردية، الدخول، الخروج، ساعات العمل، التأخير، الانصراف المبكر، الإضافي المحسوب والمعتمد، الحالة، حالة المراجعة.
+5. `Late Report` — الحالات المتأخرة فقط مع دقائق التأخير.
+6. `Overtime Report` — الوردية، نهاية الوردية، الخروج الفعلي، الإضافي المحسوب والمعتمد.
+7. `Payroll` — كشف رواتب الشهر الذي تنتهي فيه الفترة (أحدث إصدار غير ملغى). إن لم يوجد كشف لهذا الشهر تُكتب رسالة واضحة في الورقة بدل أرقام مُفترضة.
+8. `Exceptions` — كل ما يحتاج مراجعة بشرية: بصمة دخول/خروج مفقودة، تصنيف بحاجة لمراجعة، بصمة غير مصنّفة، وكود بصمة غير مرتبط بأي موظف.
 
-ورقتا Entry/Exit تعرضان: كود الموظف، الاسم، التاريخ، الوقت، رقم الجهاز، **رقم
-السجل الأصلي**، حالة التصنيف، ومصدره — أي أنها تعكس نتيجة التصنيف الفعلية وليست
-تقسيماً عشوائيًا.
+ورقتا Entry/Exit تعكسان نتيجة التصنيف الفعلية المحفوظة في `AttendanceEvents` وليست
+تقسيماً عشوائيًا: كل صف مرتبط برقم السجل الأصلي في `RawPunches`.
 
 التنسيق: عنوان وفترة في الأعلى، تجميد صف العناوين، تفعيل الفلاتر، عرض أعمدة مناسب،
-تنسيقات التاريخ/الوقت/المبالغ، وملخص للفترة في نهاية كل ورقة. كما تتوفر أزرار
-لتصدير كل تقرير منفردًا (البصمات الخام / الدخول / الخروج / الحضور اليومي / الرواتب).
+تنسيقات التاريخ/الوقت/المبالغ، وملخص للفترة في نهاية كل ورقة.
+
+إضافة إلى الملف الشامل، كل تقرير قابل للتصدير منفردًا: الحضور اليومي (Excel و PDF)،
+ملخص الأقسام، الإضافي، الغياب والتأخير، البصمات الخام، سجلات الدخول، سجلات الخروج،
+كشف الرواتب (Excel و PDF)، وكشف راتب موظف واحد (Excel).
 
 ## 15) الأمان والصلاحيات
 
@@ -385,41 +400,58 @@ dotnet run --project src/HrPayroll.Web
 ## 16) الاختبارات
 
 ```bash
-dotnet test tests/HrPayroll.Tests
+dotnet test HrPayroll.sln -c Release
 ```
 
-النتيجة الحالية: **28 اختبارًا ناجحًا**، تغطي الحالات المطلوبة:
+النتيجة الحالية: **111 اختبارًا ناجحًا** (0 فشل، 0 متجاوَز). تغطية الحالات المطلوبة:
 
-| # | الحالة | اختبار |
+| # | الحالة | أمثلة من أسماء الاختبارات |
 |---|---|---|
-| 1 | حضور 07:15 ⇒ تأخير 0 | `Late_At_0715_Is_Zero` |
-| 2 | حضور 07:30 ⇒ تأخير 0 | `Late_At_0730_Is_Zero` |
-| 3 | حضور 07:31 ⇒ تأخير 31 | `Late_At_0731_Is_31_Minutes` |
-| 4 | حضور 08:15 ⇒ تأخير 75 | `Late_At_0815_Is_75_Minutes` |
-| 5 | نهاية 15:00 وانصراف 16:00 ⇒ إضافي ساعة | `Overtime_DayShift_End1500_Exit1600_Is_60_Minutes` |
-| 6 | وردية ليلية نهاية 07:00 وانصراف 08:00 ⇒ إضافي ساعة | `Overtime_NightShift_End0700_NextDay_Exit0800_Is_60_Minutes` |
-| 7 | بصمة مكررة لا تُحتسب مرتين | `Duplicate_Punch_At_Same_Time_Counted_Once` |
-| 8 | دخول بدون خروج ⇒ استثناء بدون اختراع خروج | `Entry_Without_Exit_Produces_MissingCheckOut_And_No_Invented_Exit` |
-| 9 | موظف غير مسجل يظهر في تقرير الأخطاء | `Unknown_Employee_Is_Detected` |
-| 10 | إعادة استيراد الملف لا تُكرر الحركات | `Reimporting_Same_File_Does_Not_Duplicate` |
-| 11 | صحة تصدير Entry/Exit والربط بالسجلات الأصلية | `Entry_Sheet_Preserves_Link_To_Raw_Punch`, `Full_Export_Contains_All_Required_Sheets` |
-| 12 | عدم خصم السلف والخصومات مرتين | `Loan_And_Deduction_Are_Applied_Once_And_Not_Duplicated` |
-
-إضافة إلى اختبارات: تحويل صيغ الوقت، اكتشاف نوع الملف من المحتوى، اكتشاف الأعمدة،
-معادلة صافي الراتب، وتعطيل خصم التأخير حسب السياسة.
+| 1 | سماح الدخول | `Late_Within_Grace_Is_Zero` (07:10 / 07:25 / 07:30) |
+| 2 | تجاوز السماح يُلغي السماح بالكامل | `Late_After_Grace_Counts_From_Shift_Start` (07:31=31، 07:35=35، 08:00=60، 08:15=75) |
+| 3 | سماح الخروج والإضافي | `Overtime_Within_Exit_Grace_Is_Zero` (15:00/15:15/15:30)، `Overtime_After_Exit_Grace_Counts_From_Shift_End` (15:35=35، 16:00=60) |
+| 4 | الوردية الليلية | `NightShift_Window_And_Overtime`، `Overnight_Shift_Punches_Are_Classified_On_The_Next_Day` |
+| 5 | اكتشاف الوردية اليومية | `Detects_First_Shift_From_Morning_Punches`، `Ambiguous_Punches_Are_Flagged_For_Review_Instead_Of_Guessing`، `Assigned_Shift_Wins_When_Punches_Are_Equally_Compatible` |
+| 6 | تصنيف الدخول/الخروج بلا تخمين | `Neutral_Punch_Type_Does_Not_Decide_Direction`، `Explicit_Device_Punch_Types_Are_Honoured` |
+| 7 | البصمة الناقصة لا تُخترع | `Missing_Entry_Punch_Is_Flagged_Not_Absent_And_Not_Overtime`، `Missing_Exit_Punch_Is_Flagged_Not_Absent` |
+| 8 | تكرار البصمة | `Duplicate_Punches_At_Same_Time_Are_Deduplicated` |
+| 9 | إعادة استيراد الملف لا تُكرر الحركات | `Importing_The_Same_File_Twice_Inserts_Nothing_The_Second_Time`، `New_Records_For_A_Previously_Imported_Date_Are_Imported` |
+| 10 | كود بصمة غير مسجل | `Unknown_Biometric_Code_Is_Reported_And_Not_Imported`، `Matching_Uses_Biometric_Code_Not_Name` |
+| 11 | تصدير Entry/Exit والربط بالسجل الأصلي | `Entry_Sheet_Preserves_Link_To_Raw_Punch`، `Full_Export_Contains_All_Required_Sheets` |
+| 12 | منع الخصم المزدوج | `Loans_And_Deductions_Are_Applied_Once_Even_After_Recalculation`، `Components_Already_Paid_In_A_Previous_Period_Are_Not_Paid_Again` |
+| 13 | الخصومات حسب السياسة | `Absence_Is_Deducted_At_The_Daily_Rate`، `Unpaid_Leave_Is_Deducted_At_The_Daily_Rate`، `Approved_Annual_Leave_Is_Paid_And_Not_Deducted` |
+| 14 | دورة اعتماد/قفل الرواتب | `Locked_Payroll_Cannot_Be_Recalculated_Without_An_Explicit_Reopen`، `Reopen_Requires_A_Reason`، `Locking_Requires_Approval_First` |
+| 15 | صحة صافي الراتب | `Payroll_Matches_The_Company_Example`، `Daily_And_Hourly_Rates_For_9000_Salary`، `Ten_Approved_Overtime_Hours_Are_375`، `Fifty_Approved_Overtime_Hours_Are_1875` |
+| 16 | عدم تطبيق أي مضاعف للإضافي | `No_Overtime_Multiplier_Is_Applied_By_Default` |
+| 17 | الإجازات والعطلات وأيام الراحة | `Working_Days_Exclude_Fridays`، `Working_Days_Exclude_Public_Holidays`، `Friday_Is_A_Paid_Weekly_Rest_Day_And_Not_Absence`، `Overlapping_Leaves_Are_Rejected` |
+| 18 | تصحيح الحضور يدويًا | `Manual_Correction_Records_Original_Reason_And_User`، `Correction_Without_Reason_Is_Rejected`، `Attendance_Correction_Is_Blocked_For_A_Locked_Payroll_Period` |
+| 19 | تناسق التقارير والتصدير | `Report_Rows_Match_The_Stored_Daily_Attendance_Values`، `Excel_Daily_Export_Contains_Exactly_The_Reported_Rows`، `Excel_Payroll_Export_Matches_Stored_Payroll_Items`، `Pdf_Payroll_And_Payslip_Are_Valid_Pdf_Files` |
+| 20 | استيراد الموظفين من Excel | `Employee_Import_Preview_Validates_And_Detects_Duplicates`، `Employee_Import_CreateAndUpdate_Updates_With_Audit_Trail` |
 
 ## 17) الإعدادات (Settings)
 
 | المفتاح | المعنى | الافتراضي |
 |---|---|---|
-| `Payroll.WorkDaysPerMonth` | أيام العمل في الشهر | 30 |
+| `Payroll.WorkDaysPerMonth` | أيام الشهر لحساب الأجر اليومي | 30 |
 | `Payroll.WorkHoursPerDay` | ساعات العمل اليومية | 8 |
-| `Payroll.DefaultOvertimeMultiplier` | معامل الإضافي الافتراضي | 1 |
-| `Payroll.LateDeductionEnabled` | تفعيل خصم التأخير | true |
-| `Payroll.AbsenceDeductionEnabled` | تفعيل خصم الغياب | false |
+| `Payroll.DefaultOvertimeMultiplier` | معامل الإضافي (سياسة الشركة = بدون مضاعفة) | 1 |
+| `Payroll.LateDeductionEnabled` | خصم التأخير | true |
+| `Payroll.AbsenceDeductionEnabled` | خصم أيام الغياب | true |
+| `Payroll.UnpaidLeaveDeductionEnabled` | خصم الإجازات بدون أجر | true |
+| `Payroll.OvertimeRoundingStepMinutes` | خطوة تقريب الإضافي بالدقائق | 1 |
+| `Payroll.RoundOvertimeDown` | التقريب للأسفل | true |
 | `Payroll.RequireOvertimeApproval` | اعتماد الإضافي يدويًا | true |
+| `Payroll.AllowPayrollWithoutAttendance` | السماح بكشف بلا حضور | false |
+| `Payroll.MonthlySalaryIncludesPaidRestDays` | الراتب يشمل أيام الراحة المدفوعة | true |
+| `Payroll.AnnualLeaveEntitlementDays` | رصيد الإجازة السنوية للموظف الجديد | 21 |
 | `Attendance.WeeklyRestDays` | أيام الراحة (0=الأحد … 5=الجمعة) | 5 |
-| `General.CompanyTimeZone` | توقيت الشركة | Arab Standard Time |
+| `Attendance.EntryGraceMinutes` | سماح الدخول الافتراضي | 30 |
+| `Attendance.ExitGraceMinutes` | سماح الخروج الافتراضي | 30 |
+| `Attendance.MinimumOvertimeMinutes` | أقل مدة إضافي معتبرة | 1 |
+| `Attendance.AutoProcessAfterImport` | معالجة الحضور تلقائيًا بعد الاستيراد | false |
+| `General.CompanyTimeZone` | توقيت الشركة | Egypt Standard Time |
+| `General.CompanyName` | اسم الشركة في التقارير | شركة الموارد البشرية |
+| `General.Currency` | عملة الرواتب | EGP |
 
 ## 18) ملاحظة حول ملف العينة `att5.xls`
 
@@ -450,14 +482,14 @@ dotnet test tests/HrPayroll.Tests
 | إدارة الموظفين والأقسام والمسميات | `EmployeesController`, `DepartmentsController`, `JobTitlesController`, `Organization.cs` |
 | استيراد الموظفين من Excel (معاينة/ربط أعمدة/جديد أو تحديث) | `EmployeeImportService`, `EmployeeColumnMapper`, `Views/Employees/Import*.cshtml` |
 | استيراد بصمات الجهاز (3 مراحل + كشف الصيغة + منع التكرار) | `AttendanceImportService`, `ColumnMapper`, `AttendanceFileParser` |
-| إعداد الورديات واكتشاف الوردية اليومية | `ShiftService`, `ShiftDetector`, `ShiftWindowResolver`, `PunchWorkDateResolver`, `Views/Shifts` |
+| إعداد الورديات واكتشاف الوردية اليومية | `ShiftService`, `ShiftDetector`, `ShiftWindow`, `PunchWorkDateResolver`, `Views/Shifts` |
 | معالجة الحضور (تأخير/انصراف مبكر/بصمة ناقصة/راحة/عطلة/إجازة) | `AttendanceProcessingService`, `PunchClassifier`, `AttendanceCalculator` |
 | تصحيح الحضور يدويًا مع أثر تدقيق | `AttendanceCorrectionService`, `Views/Attendance/Correct.cshtml` |
 | الإجازات وتحويل الغياب إلى إجازة | `LeaveService`, `LeavesController`, `Views/Leaves` |
 | العطلات الرسمية وأيام الراحة الأسبوعية | `HolidaysController`, `SettingKeys.WeeklyRestDays` |
 | اعتماد الإضافي (بدون أي مضاعفة) | `OvertimeController`, `Views/Overtime` |
 | الرواتب ودورة العمل (احتساب/مراجعة/اعتماد/قفل/إعادة فتح) | `PayrollService`, `PayrollCalculator`, `Views/Payroll` |
-| التقارير والتصدير Excel + PDF وكشوف الرواتب | `ReportService`, `ExcelExportService`, `PdfExportService`, `Views/Reports` |
+| التقارير والتصدير: ملف شامل بـ 8 أوراق (Raw Punches / Entry / Exit / Daily Attendance / Late / Overtime / Payroll / Exceptions) + PDF وكشوف الرواتب | `ReportService`, `ExcelExportService`, `PdfExportService`, `Views/Reports` |
 | واجهة عربية RTL حديثة | `Views/Shared/_Layout.cshtml`, `wwwroot/css/site.css`, `wwwroot/js/site.js` |
 | سجل التدقيق والصلاحيات | `AuditService`, `AppRoles`/`AppPolicies` في `Program.cs` |
 

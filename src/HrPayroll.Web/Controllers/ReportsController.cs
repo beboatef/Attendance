@@ -136,6 +136,14 @@ public class ReportsController : Controller
         return Xlsx(bytes, "Raw_Punches");
     }
 
+    public async Task<IActionResult> ExportEntryExcel(DateTime? from, DateTime? to, string? department,
+        int? employeeId, int? shiftId, CancellationToken ct)
+        => Xlsx(await _excel.ExportEventsAsync(Build(from, to, department, employeeId, shiftId, null, null), AttendanceEventType.Entry, ct), "Entry");
+
+    public async Task<IActionResult> ExportExitExcel(DateTime? from, DateTime? to, string? department,
+        int? employeeId, int? shiftId, CancellationToken ct)
+        => Xlsx(await _excel.ExportEventsAsync(Build(from, to, department, employeeId, shiftId, null, null), AttendanceEventType.Exit, ct), "Exit");
+
     public async Task<IActionResult> ExportFullWorkbook(DateTime? from, DateTime? to, string? department,
         int? employeeId, int? shiftId, CancellationToken ct)
         => Xlsx(await _excel.ExportFullWorkbookAsync(Build(from, to, department, employeeId, shiftId, null, null), ct), "Full_Report");

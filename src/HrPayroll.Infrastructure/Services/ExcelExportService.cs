@@ -101,6 +101,14 @@ public class ExcelExportService
     /// <summary>تقرير الرواتب الكامل لكشف محسوب.</summary>
     public async Task<byte[]> ExportPayrollAsync(int payrollRunId, CancellationToken ct = default)
     {
+        using var wb = new XLWorkbook();
+        await AddPayrollSheetAsync(wb, payrollRunId, ct);
+        return ToBytes(wb);
+    }
+
+    /// <summary>بناء ورقة كشف الرواتب داخل مصنّف قائم.</summary>
+    private async Task AddPayrollSheetAsync(XLWorkbook wb, int payrollRunId, CancellationToken ct)
+    {
         var run = await _db.PayrollRuns.AsNoTracking().FirstOrDefaultAsync(r => r.Id == payrollRunId, ct);
         if (run is null) throw new InvalidOperationException("كشف الرواتب غير موجود");
 
@@ -108,7 +116,6 @@ public class ExcelExportService
         var settings = await _settings.GetAllAsync(ct);
         var currency = settings.TryGetValue(SettingKeys.Currency, out var c) ? c : "EGP";
 
-        using var wb = new XLWorkbook();
         AddSheet(wb, "Payroll", $"كشف رواتب {run.Year}-{run.Month:00}", $"الإصدار {run.Version} | العملة {currency}",
             new[]
             {
@@ -131,8 +138,6 @@ public class ExcelExportService
             summary: $"عدد الموظفين: {rows.Count} | إجمالي الاستحقاقات: {rows.Sum(r => r.GrossEarnings):N2} | إجمالي الخصومات: {rows.Sum(r => r.TotalDeductions):N2} | صافي الكشف: {rows.Sum(r => r.NetSalary):N2} {currency}",
             moneyColumns: Enumerable.Range(6, 3).Concat(Enumerable.Range(18, 11)).ToArray(),
             decimalColumns: new[] { 11, 12, 13, 15, 16, 17, 21 });
-
-        return ToBytes(wb);
     }
 
     /// <summary>كشف راتب موظف واحد (Payslip) بصيغة Excel.</summary>
@@ -294,21 +299,118 @@ public class ExcelExportService
         return ToBytes(wb);
     }
 
-    /// <summary>ملف شامل بأوراق متعددة.</summary>
+    /// <summary>
+    /// الملف الشامل: يحوي الأوراق الثمانية المعتمدة بنفس الترتيب:
+    /// Raw Punches, Entry, Exit, Daily Attendance, Late Report, Overtime Report, Payroll, Exceptions.
+    /// </summary>
     public async Task<byte[]> ExportFullWorkbookAsync(AttendanceReportFilter filter, CancellationToken ct = default)
     {
-        var daily = await ExportDailyAttendanceAsync(filter, ct);
-        var dept = await ExportDepartmentReportAsync(filter, ct);
-        var overtime = await ExportOvertimeAsync(filter, ct);
-        var absence = await ExportAbsenceAsync(filter, ct);
-
         using var wb = new XLWorkbook();
-        foreach (var (name, bytes) in new[] { ("__daily", daily), ("__dept", dept), ("__ot", overtime), ("__abs", absence) })
+
+        // 1) البصمات الخام كما وردت من الجهاز
+        var raw = await GetRawPunchesAsync(new ExportFilter
         {
-            using var src = new XLWorkbook(new MemoryStream(bytes));
-            foreach (var ws in src.Worksheets)
-                ws.CopyTo(wb, name == "__daily" ? ws.Name : $"{name.Trim('_')}_{ws.Name}");
+            From = filter.From, To = filter.To, EmployeeId = filter.EmployeeId,
+            ShiftId = filter.ShiftId, Department = filter.Department
+        }, ct);
+        AddSheet(wb, "Raw Punches", "البصمات الخام المستوردة", filter.PeriodText,
+            new[] { "م", "كود الجهاز", "كود الموظف", "الاسم", "رقم الجهاز", "نوع البصمة", "وقت البصمة", "النص الأصلي", "رقم الصف", "الموظف مسجل؟" },
+            raw.Select((r, i) => new object?[]
+            {
+                i + 1, r.DeviceCode, r.Code, r.Name, r.DeviceId, r.AttType, r.PunchTime, r.RawText, r.RowNumber,
+                r.EmployeeId.HasValue ? "نعم" : "لا"
+            }),
+            summary: $"إجمالي البصمات الخام: {raw.Count}",
+            dateTimeColumns: new[] { 7 });
+
+        // 2) و 3) سجلات الدخول والخروج المصنفة (مرتبطة بالسجل الأصلي)
+        var events = await GetEventRowsAsync(filter, ct);
+        AddEventSheet(wb, AttendanceEventType.Entry, filter.PeriodText, events.Where(e => e.EventType == AttendanceEventType.Entry).ToList());
+        AddEventSheet(wb, AttendanceEventType.Exit, filter.PeriodText, events.Where(e => e.EventType == AttendanceEventType.Exit).ToList());
+
+        // 4) ملخص الحضور اليومي
+        var daily = await _reports.GetDailyAttendanceAsync(filter, ct);
+        AddSheet(wb, "Daily Attendance", "ملخص الحضور اليومي", filter.PeriodText,
+            new[]
+            {
+                "م", "كود الموظف", "الاسم", "القسم", "المسمى الوظيفي", "تاريخ العمل", "الوردية",
+                "الدخول", "الخروج", "ساعات العمل", "التأخير (دقيقة)", "انصراف مبكر (دقيقة)",
+                "إضافي محسوب (ساعة)", "إضافي معتمد (ساعة)", "حالة الحضور", "حالة المراجعة", "ملاحظات"
+            },
+            daily.Select((d, i) => new object?[]
+            {
+                i + 1, d.EmployeeCode, d.EmployeeName, d.Department, d.JobTitle, d.WorkDate, d.ShiftName,
+                d.CheckIn?.ToString("HH:mm"), d.CheckOut?.ToString("HH:mm"), d.WorkedHours,
+                d.LateMinutes, d.EarlyLeaveMinutes, d.RawOvertimeHours, d.ApprovedOvertimeHours,
+                AttendanceText(d.Status), StatusText(d.PunchReviewStatus), d.Notes
+            }),
+            summary: $"إجمالي أيام الحضور: {daily.Count} | إجمالي دقائق التأخير: {daily.Sum(d => d.LateMinutes)} | إجمالي ساعات الإضافي المعتمد: {Math.Round(daily.Sum(d => d.ApprovedOvertimeMinutes) / 60m, 2)}",
+            dateFormatColumns: new[] { 6 });
+
+        // 5) تقرير التأخير
+        var lateRows = daily.Where(d => d.LateMinutes > 0).ToList();
+        AddSheet(wb, "Late Report", "تقرير التأخير", filter.PeriodText,
+            new[] { "م", "كود الموظف", "الاسم", "القسم", "تاريخ العمل", "الوردية", "وقت الدخول", "دقائق التأخير", "ملاحظات" },
+            lateRows.Select((d, i) => new object?[]
+            {
+                i + 1, d.EmployeeCode, d.EmployeeName, d.Department, d.WorkDate, d.ShiftName,
+                d.CheckIn?.ToString("HH:mm"), d.LateMinutes, d.Notes
+            }),
+            summary: $"إجمالي الحالات المتأخرة: {lateRows.Count} | إجمالي الدقائق: {lateRows.Sum(d => d.LateMinutes)}",
+            dateFormatColumns: new[] { 5 });
+
+        // 6) تقرير الإضافي
+        var overtime = await _reports.GetOvertimeAsync(filter, onlyWithOvertime: true, ct: ct);
+        AddSheet(wb, "Overtime Report", "تقرير الإضافي", filter.PeriodText,
+            new[] { "م", "كود الموظف", "الاسم", "القسم", "التاريخ", "الوردية", "نهاية الوردية", "الخروج الفعلي", "إضافي محسوب (ساعة)", "إضافي معتمد (ساعة)", "معتمد؟" },
+            overtime.Select((r, i) => new object?[]
+            {
+                i + 1, r.EmployeeCode, r.EmployeeName, r.Department, r.WorkDate, r.ShiftName,
+                r.ShiftEnd.ToString("HH:mm"), r.CheckOut?.ToString("HH:mm"),
+                Math.Round(r.RawMinutes / 60m, 2), r.DecimalHours, r.IsApproved ? "نعم" : "لا"
+            }),
+            summary: $"إجمالي الساعات المحسوبة: {Math.Round(overtime.Sum(r => r.RawMinutes) / 60m, 2)} | المعتمدة: {Math.Round(overtime.Sum(r => r.ApprovedMinutes) / 60m, 2)}",
+            dateFormatColumns: new[] { 5 }, decimalColumns: new[] { 9, 10 });
+
+        // 7) كشف رواتب الشهر الذي تنتهي فيه الفترة
+        await AddPayrollSheetForPeriodAsync(wb, filter, ct);
+
+        // 8) الاستثناءات
+        var exceptions = await GetExceptionRowsAsync(filter, ct);
+        AddSheet(wb, "Exceptions", "الاستثناءات والبصمات غير المصنفة", filter.PeriodText,
+            new[] { "م", "النوع", "كود الموظف", "الاسم", "التاريخ/الوقت", "الوصف" },
+            exceptions.Select((e, i) => new object?[] { i + 1, e.Kind, e.Code, e.Name, e.When, e.Description }),
+            summary: $"إجمالي الاستثناءات: {exceptions.Count}",
+            dateTimeColumns: new[] { 5 });
+
+        return ToBytes(wb);
+    }
+
+    /// <summary>كشف رواتب شهر الفترة (أحدث إصدار غير ملغى).</summary>
+    private async Task AddPayrollSheetForPeriodAsync(XLWorkbook wb, AttendanceReportFilter f, CancellationToken ct)
+    {
+        var run = await _db.PayrollRuns.AsNoTracking()
+            .Where(r => r.Year == f.To.Year && r.Month == f.To.Month && r.Status != PayrollStatus.Cancelled)
+            .OrderByDescending(r => r.Version)
+            .FirstOrDefaultAsync(ct);
+
+        if (run is null)
+        {
+            AddSheet(wb, "Payroll", "كشف الرواتب", f.PeriodText,
+                new[] { "لا يوجد كشف رواتب", "احتسب الكشف من شاشة الرواتب ثم أعد التصدير" },
+                Enumerable.Empty<object?[]>(), summary: null);
+            return;
         }
+
+        await AddPayrollSheetAsync(wb, run.Id, ct);
+    }
+
+    /// <summary>تصدير سجلات الدخول أو الخروج المصنفة في ملف منفرد.</summary>
+    public async Task<byte[]> ExportEventsAsync(AttendanceReportFilter filter, AttendanceEventType type, CancellationToken ct = default)
+    {
+        var rows = (await GetEventRowsAsync(filter, ct)).Where(e => e.EventType == type).ToList();
+        using var wb = new XLWorkbook();
+        AddEventSheet(wb, type, filter.PeriodText, rows);
         return ToBytes(wb);
     }
 
@@ -382,6 +484,137 @@ public class ExcelExportService
                 EmployeeId = p.EmployeeId
             })
             .ToListAsync(ct);
+    }
+
+    // ======================= سجلات الدخول/الخروج والاستثناءات =======================
+
+    private sealed class EventRow
+    {
+        public int EmployeeId { get; set; }
+        public string EmployeeCode { get; set; } = string.Empty;
+        public string EmployeeName { get; set; } = string.Empty;
+        public string? DeviceId { get; set; }
+        public int RawPunchId { get; set; }
+        public AttendanceEventType EventType { get; set; }
+        public DateTime EventTime { get; set; }
+        public ClassificationStatus ClassificationStatus { get; set; }
+        public ClassificationSource ClassificationSource { get; set; }
+        public string? Note { get; set; }
+    }
+
+    private sealed class ExceptionRow
+    {
+        public string Kind { get; set; } = string.Empty;
+        public string Code { get; set; } = string.Empty;
+        public string Name { get; set; } = string.Empty;
+        public DateTime When { get; set; }
+        public string Description { get; set; } = string.Empty;
+    }
+
+    /// <summary>أعمدة ورقتي Entry/Exit مطابقة للمتطلب.</summary>
+    private static readonly string[] EventSheetHeaders =
+    {
+        "م", "كود الموظف", "الاسم", "التاريخ", "الوقت", "رقم الجهاز", "رقم السجل الأصلي", "حالة التصنيف", "مصدر التصنيف", "ملاحظة"
+    };
+
+    /// <summary>البصمات المصنفة دخول/خروج مع رابطها بالسجل الأصلي في RawPunches.</summary>
+    private async Task<List<EventRow>> GetEventRowsAsync(AttendanceReportFilter f, CancellationToken ct)
+    {
+        var q = _db.AttendanceEvents.AsNoTracking()
+            .Include(a => a.Employee)
+            .Include(a => a.RawPunch)
+            .Where(a => a.WorkDate >= f.From.Date && a.WorkDate <= f.To.Date);
+
+        if (f.EmployeeId.HasValue) q = q.Where(a => a.EmployeeId == f.EmployeeId.Value);
+        if (f.ShiftId.HasValue) q = q.Where(a => a.ShiftId == f.ShiftId.Value);
+        if (!string.IsNullOrWhiteSpace(f.Department)) q = q.Where(a => a.Employee!.Department == f.Department);
+
+        var list = await q.OrderBy(a => a.EventTime).ThenBy(a => a.Id).ToListAsync(ct);
+        return list.Select(a => new EventRow
+        {
+            EmployeeId = a.EmployeeId,
+            EmployeeCode = a.Employee?.EmployeeCode ?? a.RawPunch?.DeviceEmployeeCode ?? string.Empty,
+            EmployeeName = a.Employee?.FullName ?? a.RawPunch?.RawEmployeeName ?? string.Empty,
+            DeviceId = a.RawPunch?.DeviceId,
+            RawPunchId = a.RawPunchId,
+            EventType = a.EventType,
+            EventTime = a.EventTime,
+            ClassificationStatus = a.ClassificationStatus,
+            ClassificationSource = a.ClassificationSource,
+            Note = a.Notes
+        }).ToList();
+    }
+
+    private static void AddEventSheet(XLWorkbook wb, AttendanceEventType type, string periodText, List<EventRow> rows)
+    {
+        var isEntry = type == AttendanceEventType.Entry;
+        AddSheet(wb, isEntry ? "Entry" : "Exit",
+            isEntry ? "سجلات الدخول المصنفة" : "سجلات الخروج المصنفة", periodText,
+            EventSheetHeaders,
+            rows.Select((e, i) => new object?[]
+            {
+                i + 1, e.EmployeeCode, e.EmployeeName, e.EventTime.Date, e.EventTime.TimeOfDay,
+                e.DeviceId, e.RawPunchId, StatusText(e.ClassificationStatus), SourceText(e.ClassificationSource), e.Note
+            }),
+            summary: $"إجمالي سجلات {(isEntry ? "الدخول" : "الخروج")}: {rows.Count}",
+            dateFormatColumns: new[] { 4 }, timeFormatColumns: new[] { 5 });
+    }
+
+    /// <summary>كل ما يحتاج مراجعة بشرية: بصمات ناقصة/غامضة/غير مصنفة/موظف غير معروف.</summary>
+    private async Task<List<ExceptionRow>> GetExceptionRowsAsync(AttendanceReportFilter f, CancellationToken ct)
+    {
+        var rows = new List<ExceptionRow>();
+
+        var daily = await _db.DailyAttendances.AsNoTracking()
+            .Include(d => d.Employee)
+            .Where(d => d.WorkDate >= f.From.Date && d.WorkDate <= f.To.Date
+                        && (d.Status == AttendanceStatus.MissingCheckIn
+                            || d.Status == AttendanceStatus.MissingCheckOut
+                            || d.Status == AttendanceStatus.NeedsReview
+                            || d.PunchReviewStatus == ClassificationStatus.NeedsReview))
+            .OrderBy(d => d.WorkDate).ThenBy(d => d.EmployeeId)
+            .ToListAsync(ct);
+
+        foreach (var d in daily)
+            rows.Add(new ExceptionRow
+            {
+                Kind = d.Status == AttendanceStatus.MissingCheckIn ? "بصمة دخول مفقودة"
+                    : d.Status == AttendanceStatus.MissingCheckOut ? "بصمة خروج مفقودة"
+                    : "يحتاج مراجعة",
+                Code = d.Employee?.EmployeeCode ?? string.Empty,
+                Name = d.Employee?.FullName ?? string.Empty,
+                When = d.WorkDate,
+                Description = d.Notes ?? d.AdminNotes ?? "بصمات ناقصة أو تصنيف غير مؤكد"
+            });
+
+        foreach (var e in (await GetEventRowsAsync(f, ct))
+                     .Where(e => e.EventType == AttendanceEventType.Unknown
+                                 || e.ClassificationStatus == ClassificationStatus.NeedsReview))
+            rows.Add(new ExceptionRow
+            {
+                Kind = e.EventType == AttendanceEventType.Unknown ? "بصمة غير مصنفة" : "تصنيف بحاجة لمراجعة",
+                Code = e.EmployeeCode,
+                Name = e.EmployeeName,
+                When = e.EventTime,
+                Description = e.Note ?? "تصنيف آلي غير مؤكد"
+            });
+
+        var unknown = await _db.RawPunches.AsNoTracking()
+            .Where(p => p.EmployeeId == null && p.PunchTime >= f.From.Date && p.PunchTime <= f.To.Date.AddDays(1))
+            .OrderBy(p => p.PunchTime)
+            .ToListAsync(ct);
+
+        foreach (var p in unknown)
+            rows.Add(new ExceptionRow
+            {
+                Kind = "موظف غير معروف",
+                Code = p.DeviceEmployeeCode,
+                Name = p.RawEmployeeName ?? "غير معروف",
+                When = p.PunchTime,
+                Description = $"كود البصمة {p.DeviceEmployeeCode} غير مرتبط بأي موظف"
+            });
+
+        return rows.OrderBy(r => r.When).ToList();
     }
 
     // ======================= أدوات بناء الأوراق =======================

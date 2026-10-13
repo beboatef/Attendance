@@ -247,6 +247,106 @@ public class ReportExportTests
         Assert.NotNull(wb.Worksheet("Payslip"));
     }
 
+    [Fact] // 11) صحة تصدير Entry/Exit والربط بالسجلات الأصلية
+    public async Task Entry_Sheet_Preserves_Link_To_Raw_Punch()
+    {
+        using var db = new TestDb();
+        await using var ctx = db.CreateContext();
+        ctx.Shifts.Add(TestDb.FirstShift());
+        ctx.Employees.Add(new Employee
+        {
+            Id = 1, EmployeeCode = "1001", DeviceEmployeeCode = "1001", FullName = "مينا فؤاد",
+            Department = "المالية", JobTitle = "محاسب", BasicSalary = 9000m, HireDate = new DateTime(2022, 1, 1),
+            EmploymentStatus = EmploymentStatus.Active, IsActive = true, StandardWorkHours = 8m
+        });
+
+        ctx.RawPunches.AddRange(
+            new RawPunch
+            {
+                Id = 11, DeviceId = "DEV-01", DeviceEmployeeCode = "1001", RawEmployeeName = "مينا فؤاد",
+                AttType = "I", PunchTime = Day.AddHours(7), RawPunchTimeText = "07:00", RowNumber = 42,
+                DedupHash = "entry-hash", EmployeeId = 1
+            },
+            new RawPunch
+            {
+                Id = 12, DeviceId = "DEV-01", DeviceEmployeeCode = "1001", RawEmployeeName = "مينا فؤاد",
+                AttType = "O", PunchTime = Day.AddHours(16), RawPunchTimeText = "16:00", RowNumber = 43,
+                DedupHash = "exit-hash", EmployeeId = 1
+            });
+
+        ctx.AttendanceEvents.AddRange(
+            new AttendanceEvent
+            {
+                EmployeeId = 1, RawPunchId = 11, ShiftId = 1, WorkDate = Day,
+                EventType = AttendanceEventType.Entry, EventTime = Day.AddHours(7),
+                ClassificationStatus = ClassificationStatus.Classified,
+                ClassificationSource = ClassificationSource.ExplicitDeviceType
+            },
+            new AttendanceEvent
+            {
+                EmployeeId = 1, RawPunchId = 12, ShiftId = 1, WorkDate = Day,
+                EventType = AttendanceEventType.Exit, EventTime = Day.AddHours(16),
+                ClassificationStatus = ClassificationStatus.Classified,
+                ClassificationSource = ClassificationSource.ExplicitDeviceType
+            });
+        await ctx.SaveChangesAsync();
+
+        var reports = new ReportService(ctx, new SettingsService(ctx));
+        var excel = new ExcelExportService(ctx, new SettingsService(ctx), reports);
+        var filter = new AttendanceReportFilter { From = Day, To = Day };
+
+        var entryBytes = await excel.ExportEventsAsync(filter, AttendanceEventType.Entry);
+        using var entryWb = new XLWorkbook(new MemoryStream(entryBytes));
+        var entry = entryWb.Worksheet("Entry");
+        Assert.Single(entryWb.Worksheets);                       // ورقة الدخول فقط
+        Assert.Equal("كود الموظف", entry.Cell(5, 2).GetString());
+        Assert.Equal("1001", entry.Cell(6, 2).GetString());
+        Assert.Equal("DEV-01", entry.Cell(6, 6).GetString());    // رقم الجهاز من السجل الأصلي
+
+        // رقم السجل الأصلي يشير فعلًا إلى صف البصمة الخام نفسه
+        var linkedId = entry.Cell(6, 7).GetValue<int>();
+        var linkedRaw = await ctx.RawPunches.AsNoTracking().SingleAsync(x => x.Id == linkedId);
+        Assert.Equal(42, linkedRaw.RowNumber);
+        Assert.Equal(Day.AddHours(7), linkedRaw.PunchTime);
+
+        var exitBytes = await excel.ExportEventsAsync(filter, AttendanceEventType.Exit);
+        using var exitWb = new XLWorkbook(new MemoryStream(exitBytes));
+        var exit = exitWb.Worksheet("Exit");
+        Assert.Single(exitWb.Worksheets);
+        Assert.Equal(12, exit.Cell(6, 7).GetValue<int>());
+    }
+
+    [Fact] // 11) الملف الشامل يحوي كل الأوراق المطلوبة بنفس ترتيبها
+    public async Task Full_Export_Contains_All_Required_Sheets()
+    {
+        var (db, ctx) = await SeedAsync();
+        using var _ = db;
+        var reports = new ReportService(ctx, new SettingsService(ctx));
+        var excel = new ExcelExportService(ctx, new SettingsService(ctx), reports);
+
+        var bytes = await excel.ExportFullWorkbookAsync(new AttendanceReportFilter { From = Day, To = Day });
+        using var wb = new XLWorkbook(new MemoryStream(bytes));
+
+        var expected = new[]
+        {
+            "Raw Punches", "Entry", "Exit", "Daily Attendance", "Late Report", "Overtime Report", "Payroll", "Exceptions"
+        };
+        Assert.Equal(expected, wb.Worksheets.Select(w => w.Name).ToArray());
+
+        // ورقة الحضور اليومي تحمل نفس الصفوف الثلاثة المخزّنة
+        var daily = wb.Worksheet("Daily Attendance");
+        Assert.Equal("كود الموظف", daily.Cell(5, 2).GetString());
+        Assert.Equal(4 + 3, daily.RowsUsed().Count());
+
+        // المتأخر 35 دقيقة يظهر في تقرير التأخير بنفس القيمة المخزّنة
+        var late = wb.Worksheet("Late Report");
+        Assert.Equal(35, late.Cell(6, 8).GetValue<int>());
+        Assert.Equal("1001", late.Cell(6, 2).GetString());
+
+        // الصافي في ورقة الرواتب يبقى مطابقًا للمخزّن عند وجود كشف
+        Assert.Equal("لا يوجد كشف رواتب", wb.Worksheet("Payroll").Cell(5, 1).GetString());
+    }
+
     [Fact]
     public async Task Employee_Import_Template_Contains_All_Required_Headers()
     {

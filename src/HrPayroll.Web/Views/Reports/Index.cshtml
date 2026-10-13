@@ -82,6 +82,20 @@
                     <td><a class="btn btn-ghost btn-sm" asp-action="ExportDailyPdf" asp-all-route-data="q">PDF</a></td>
                 </tr>
                 <tr>
+                    <td>سجلات الدخول المصنفة</td>
+                    <td class="wrap">كل بصمة صنّفت دخولاً مع رقم السجل الأصلي في البصمات الخام وحالة ومصدر التصنيف</td>
+                    <td>—</td>
+                    <td><a class="btn btn-ghost btn-sm" asp-action="ExportEntryExcel" asp-all-route-data="q">Excel</a></td>
+                    <td>—</td>
+                </tr>
+                <tr>
+                    <td>سجلات الخروج المصنفة</td>
+                    <td class="wrap">كل بصمة صنّفت خروجاً مع رقم السجل الأصلي في البصمات الخام وحالة ومصدر التصنيف</td>
+                    <td>—</td>
+                    <td><a class="btn btn-ghost btn-sm" asp-action="ExportExitExcel" asp-all-route-data="q">Excel</a></td>
+                    <td>—</td>
+                </tr>
+                <tr>
                     <td>ملخص الأقسام</td>
                     <td class="wrap">من حضر، من غاب، من تأخر، ومن لديه بصمات ناقصة لكل قسم</td>
                     <td><a class="btn btn-soft btn-sm" asp-action="Index" asp-all-route-data="q">أعلى الصفحة</a></td>
@@ -111,7 +125,7 @@
                 </tr>
                 <tr>
                     <td>ملف شامل</td>
-                    <td class="wrap">كل الأوراق في ملف Excel واحد (حضور + أقسام + إضافي + غياب)</td>
+                    <td class="wrap">الأوراق الثمانية في ملف Excel واحد: البصمات الخام، الدخول، الخروج، الحضور اليومي، التأخير، الإضافي، الرواتب، الاستثناءات</td>
                     <td>—</td>
                     <td><a class="btn btn-ghost btn-sm" asp-action="ExportFullWorkbook" asp-all-route-data="q">Excel</a></td>
                     <td>—</td>
