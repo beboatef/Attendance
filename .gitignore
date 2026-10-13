@@ -7,3 +7,10 @@ obj/
 *.db-shm
 *.db-wal
 appsettings.Production.json
+
+# نشر التطبيق لـ Windows (dotnet publish -o publish)
+publish/
+
+# ملفات بيئة تحتوي أسرارًا
+.env
+.env.*

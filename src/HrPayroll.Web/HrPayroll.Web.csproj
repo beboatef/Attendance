@@ -4,6 +4,11 @@
     <ProjectReference Include="..\HrPayroll.Infrastructure\HrPayroll.Infrastructure.csproj" />
   </ItemGroup>
 
+  <!-- ينسخ ملف التشغيل إلى مجلد النشر ليصبح publish\run.bat جاهزًا للاستخدام. -->
+  <ItemGroup>
+    <None Include="..\..\run.bat" Link="run.bat" CopyToPublishDirectory="PreserveNewest" />
+  </ItemGroup>
+
   <ItemGroup>
     <PackageReference Include="Microsoft.EntityFrameworkCore.Design" Version="9.0.20">
       <IncludeAssets>runtime; build; native; contentfiles; analyzers; buildtransitive</IncludeAssets>
@@ -19,6 +24,7 @@
     <TargetFramework>net9.0</TargetFramework>
     <Nullable>enable</Nullable>
     <ImplicitUsings>enable</ImplicitUsings>
+    <UserSecretsId>878b8e18-0c48-4b43-a36b-f59432474a13</UserSecretsId>
   </PropertyGroup>
 
 </Project>

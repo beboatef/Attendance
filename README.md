@@ -12,7 +12,7 @@
 |---|---|
 | إطار العمل | ASP.NET Core MVC على **.NET 9** |
 | ORM | Entity Framework Core 9 |
-| قاعدة البيانات | **SQL Server** (LocalDB / Express / Full) |
+| قاعدة البيانات | **SQL Server بعيد** (`db73231.public.databaseasp.net`) — ويعمل أيضًا مع LocalDB / Express / Full |
 | واجهة المستخدم | Bootstrap 5 **RTL** + واجهة عربية |
 | تصدير Excel | ClosedXML |
 | قراءة ملفات البصمة | ExcelDataReader (xls/xlsx) + قارئ مخصص لـ Excel 2003 XML و CSV و HTML |
@@ -45,34 +45,114 @@ tests/
 
 ## 3) المتطلبات المسبقة
 
+**أ) لبناء المشروع مرة واحدة فقط:**
+
 - .NET SDK 9.0 أو أحدث
-- SQL Server (LocalDB أو Express أو Full) — الوضع الافتراضي يستخدم LocalDB
 - أداة `dotnet-ef` لإنشاء/تحديث الترحيلات (اختياري):
   ```bash
   dotnet tool install --global dotnet-ef --version 9.0.20
   ```
 
+**ب) للتشغيل على جهاز Windows من CMD فقط:**
+
+- Windows 64-bit — لا شيء غيره.
+- **Visual Studio غير مطلوب** إطلاقًا؛ كل الأوامر عبر .NET CLI.
+- **SQL Server محلي غير مطلوب**، وSQL Server Management Studio غير مطلوبة:
+  قاعدة البيانات بعيدة على الاستضافة (القسم 4).
+- **‏.NET Runtime غير مطلوب** على الجهاز المستهدف أيضًا، لأن النشر ذاتي الاحتواء
+  (self-contained) يتضمن runtime .NET كاملًا.
+
 ## 4) إعداد Connection String
 
-عدّل `src/HrPayroll.Web/appsettings.json`:
+قاعدة البيانات **بعيدة** على استضافة `databaseasp.net` (SQL Server 2022)، وليست LocalDB
+وليست SQL Server محليًا. البيانات الثابتة للاتصال:
+
+```
+Server=db73231.public.databaseasp.net;Database=db73231;User Id=db73231;Encrypt=True;TrustServerCertificate=True;MultipleActiveResultSets=True
+```
+
+**كلمة المرور لا تُكتب في `appsettings.json` ولا تُرفع إلى Git إطلاقًا.** الملف
+المتتبَّع يحتوي على قالب بالقيمة `__SET_PASSWORD__`، والقيمة الحقيقية تُقرأ من أحد
+المصادر التالية (الأخير له الأولوية على كل ما سبقه):
+
+| # | المصدر | متى يُستخدم |
+|---|---|---|
+| 1 | `appsettings.json` | القالب الافتراضي فقط (بدون كلمة مرور) |
+| 2 | `appsettings.Production.json` | **المستخدَم عند التشغيل على Windows** — غير مُتتبَّع في Git |
+| 3 | User Secrets | `dotnet run` في بيئة Development على جهاز المطوّر |
+| 4 | `ConnectionStrings__DefaultConnection` | متغيّر بيئة، يتقدّم على كل ما سبق |
+
+### أ) للتشغيل على Windows (الأسلوب المعتمد)
+
+أنشئ ملف `src/HrPayroll.Web/appsettings.Production.json` بجانب `appsettings.json`:
 
 ```json
-"ConnectionStrings": {
-  "DefaultConnection": "Server=(localdb)\\MSSQLLocalDB;Database=HrPayrollDb;Trusted_Connection=True;MultipleActiveResultSets=true;TrustServerCertificate=True"
+{
+  "ConnectionStrings": {
+    "DefaultConnection": "Server=db73231.public.databaseasp.net;Database=db73231;User Id=db73231;Password=<كلمة المرور>;Encrypt=True;TrustServerCertificate=True;MultipleActiveResultSets=True;"
+  }
 }
 ```
 
-أمثلة بديلة:
+هذا الملف مُستثنى في `.gitignore` ولا يُرفع إلى المستودع. عند النشر (القسم 6) يُنسخ
+تلقائيًا إلى مجلد `publish` بجانب `HrPayroll.Web.exe`، لذلك يعمل `run.bat` مباشرة.
+
+> `run.bat` نفسه **لا يحتوي** أي كلمة مرور؛ يكتفي بالإشارة إلى مصدر الإعداد.
+
+### ب) بديل بدون أي ملف: متغيّر بيئة
+
+```bat
+set "ConnectionStrings__DefaultConnection=Server=db73231.public.databaseasp.net;Database=db73231;User Id=db73231;Password=<كلمة المرور>;Encrypt=True;TrustServerCertificate=True;MultipleActiveResultSets=True;"
+run.bat
+```
+
+### ج) للتطوير عبر User Secrets
+
+```bash
+cd src/HrPayroll.Web
+dotnet user-secrets set "ConnectionStrings:DefaultConnection" "Server=db73231.public.databaseasp.net;Database=db73231;User Id=db73231;Password=<كلمة المرور>;Encrypt=True;TrustServerCertificate=True;MultipleActiveResultSets=True;"
+```
+
+### د) بديل SQL Server محلي (اختياري)
 
 - SQL Server Express:
   `Server=.\SQLEXPRESS;Database=HrPayrollDb;Trusted_Connection=True;TrustServerCertificate=True`
-- SQL Server بمستخدم وكلمة مرور:
+- مستخدم وكلمة مرور:
   `Server=localhost;Database=HrPayrollDb;User Id=sa;Password=YourPassword;TrustServerCertificate=True`
+
+### تحقق من الفهم: ماذا يحدث إن لم تُضبط كلمة المرور؟
+
+لا يُحاول التطبيق تنفيذ أي ترحيل، ويكتب في اللوج رسالة واضحة تذكر اسم المفتاح المطلوب
+بدون كشف أي بيانات اعتماد:
+
+> لم يُضبط Connection String بعد: القيمة الفعّالة ما زالت تحتوي على القالب `__SET_PASSWORD__`.
+> اضبط `ConnectionStrings:DefaultConnection` في `appsettings.Production.json` أو في
+> User Secrets أو في متغيّر البيئة `ConnectionStrings__DefaultConnection`.
 
 ## 5) تشغيل الترحيلات (Migrations)
 
 الترحيل `InitialCreate` جاهز داخل `src/HrPayroll.Infrastructure/Persistence/Migrations`،
-والتطبيق ينفّذ `Database.Migrate()` تلقائيًا عند الإقلاع.
+والتطبيق ينفّذ `Database.Migrate()` تلقائيًا عند الإقلاع. `Migrate()` **غير مدمّرة**:
+تُطبّق الترحيلات غير المطبّقة فقط، ولا تُعيد إنشاء قاعدة قائمة، ولا تحذف أي جدول أو بيانات.
+
+> **حالة قاعدة البيانات البعيدة عند إعداد هذا التحديث:** القاعدة `db73231` كانت
+> **فارغة تمامًا (0 جداول، بلا `__EFMigrationsHistory`)** والمستخدم `db73231` يملك صلاحية
+> `db_owner`، لذلك أنشأ تشغيل التطبيق مخطط `InitialCreate` (23 جدولًا) ثم بذر الأدوار
+> والورديات والمستخدم المدير. لم يُحذف أي شيء ولم تُنشأ قاعدة جديدة.
+
+لتعطيل أي تعديل تلقائي على المخطط — مثلًا بعد نقل قاعدة تحتوي بيانات جاهزة بحيث لا
+تُطبَّق أي ترحيلات عند الإقلاع:
+
+```json
+"Database": { "ApplyMigrationsOnStartup": false }
+```
+
+في هذه الحالة يبدأ التطبيق بدون لمس المخطط، وتُطبَّق الترحيلات يدويًا عند الحاجة.
+لعرض الترحيلات المطبّقة على القاعدة البعيدة (قراءة فقط):
+
+```bash
+dotnet ef migrations list -p src/HrPayroll.Infrastructure -s src/HrPayroll.Web
+```
 
 يدويًا:
 
@@ -83,7 +163,41 @@ dotnet ef database update -p src/HrPayroll.Infrastructure -s src/HrPayroll.Web
 dotnet ef migrations add <Name> -p src/HrPayroll.Infrastructure -s src/HrPayroll.Web -o Persistence/Migrations
 ```
 
-## 6) تشغيل المشروع
+## 6) التشغيل
+
+### أ) على Windows من CMD فقط (بدون Visual Studio)
+
+من مجلد المشروع، في `cmd.exe`:
+
+```bat
+publish.bat
+publish\run.bat
+```
+
+- `publish.bat` ينفّذ
+  `dotnet publish -c Release -r win-x64 --self-contained true -o publish` وينتج مجلدًا
+  مستقلًا لا يحتاج تثبيت .NET Runtime على الجهاز المستهدف.
+- `run.bat` (وهو نفسه `publish\run.bat`) يشغّل `HrPayroll.Web.exe`، ويطبع أي خطأ إقلاع،
+  ويُبقي نافذة الطرفية مفتوحة عند الخروج بخطأ (`pause`) لقراءة الرسالة.
+- العنوان الافتراضي `http://localhost:5084` (والاستماع على `0.0.0.0:5084` لقبول
+  الاتصالات الخارجية)، ويُضبط بمتغيّر بيئة قبل التشغيل:
+
+```bat
+set "ASPNETCORE_URLS=http://localhost:5084"
+run.bat
+```
+
+نشر يدوي بديل:
+
+```bat
+dotnet publish src\HrPayroll.Web\HrPayroll.Web.csproj -c Release -r win-x64 --self-contained true -o publish
+```
+
+> إن كان الجهاز سيملك .NET 9 Runtime مثبّتًا وتريد حجمًا أصغر، استخدم
+> `--self-contained false` بدل `--self-contained true`، مع تثبيت .NET 9 Runtime
+> (ASP.NET Core Runtime) على الجهاز.
+
+### ب) للتطوير
 
 ```bash
 dotnet restore
@@ -91,7 +205,16 @@ dotnet build
 dotnet run --project src/HrPayroll.Web
 ```
 
-ثم افتح العنوان الظاهر في الطرفية (مثال `https://localhost:5001`).
+ثم افتح العنوان الظاهر في الطرفية (مثال `https://localhost:7012`).
+
+### ملاحظة: التشغيل على HTTP بدون شهادة
+
+`run.bat` يضبط `ASPNETCORE_URLS=http://0.0.0.0:5084` أي HTTP فقط بدون شهادة تطوير.
+التطبيق يستدعي `UseHttpsRedirection` لكنه لا يجد منفذ HTTPS مُهيّأ في بيئة `Production`
+فيسجّل تحذيرًا ويتابع العمل على HTTP (حتى لا يُشترط تثبيت `dotnet dev-certs`).
+هذا مناسب للاستخدام الداخلي/الشبكة المحلية، و**غير مناسب للإنترنت المفتوح**؛ للإنتاج
+استخدم IIS أو Reverse Proxy مع شهادة صالحة، أو اضبط
+`ASPNETCORE_URLS=https://+:443` مع شهادة مثبّتة في مخزن شهادات Windows.
 
 ### الحساب الافتراضي (يُنشأ تلقائيًا عند أول تشغيل)
 

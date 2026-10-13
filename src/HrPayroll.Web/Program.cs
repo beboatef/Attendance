@@ -11,9 +11,15 @@ using Microsoft.EntityFrameworkCore;
 var builder = WebApplication.CreateBuilder(args);
 
 // قاعدة البيانات: SQL Server
+// القيمة تُقرأ بالترتيب: appsettings.json ثم appsettings.Production.json
+// ثم User Secrets (في بيئة Development) ثم متغيّر البيئة
+// ConnectionStrings__DefaultConnection الذي يتقدّم على كل ما سبق.
+const string UnsetPasswordPlaceholder = "__SET_PASSWORD__";
+var connectionString = builder.Configuration.GetConnectionString("DefaultConnection") ?? string.Empty;
+
 builder.Services.AddDbContext<AppDbContext>(options =>
     options.UseSqlServer(
-        builder.Configuration.GetConnectionString("DefaultConnection"),
+        connectionString,
         sql => sql.MigrationsAssembly(typeof(AppDbContext).Assembly.FullName)));
 
 // الهوية والأدوار
@@ -89,19 +95,40 @@ using (var scope = app.Services.CreateScope())
 {
     var services = scope.ServiceProvider;
     var logger = services.GetRequiredService<ILogger<Program>>();
-    try
+
+    if (connectionString.Contains(UnsetPasswordPlaceholder, StringComparison.Ordinal))
     {
-        var db = services.GetRequiredService<AppDbContext>();
-        db.Database.Migrate();
-        await DbSeeder.SeedAsync(
-            db,
-            services.GetRequiredService<RoleManager<IdentityRole>>(),
-            services.GetRequiredService<UserManager<ApplicationUser>>(),
-            logger);
+        // لا تُطبع أي بيانات اعتماد — تُذكر أسماء مفاتيح التهيئة فقط.
+        logger.LogError(
+            "لم يُضبط Connection String بعد: القيمة الفعّالة ما زالت تحتوي على القالب \"{Placeholder}\". " +
+            "اضبط \"ConnectionStrings:DefaultConnection\" في appsettings.Production.json " +
+            "(غير مُتتبَّع في Git) أو في User Secrets أو في متغيّر البيئة " +
+            "ConnectionStrings__DefaultConnection. لن تُنفَّذ أي ترحيلات أو تهيئة بيانات.",
+            UnsetPasswordPlaceholder);
     }
-    catch (Exception ex)
+    else if (!builder.Configuration.GetValue("Database:ApplyMigrationsOnStartup", true))
     {
-        logger.LogError(ex, "تعذّر تهيئة قاعدة البيانات. تحقق من Connection String وشغّل الترحيلات.");
+        logger.LogInformation(
+            "تم تخطّي الترحيلات وتهيئة البيانات عند الإقلاع (Database:ApplyMigrationsOnStartup=false). " +
+            "لتفعيلها لاحقًا: dotnet ef database update -p src/HrPayroll.Infrastructure -s src/HrPayroll.Web");
+    }
+    else
+    {
+        try
+        {
+            var db = services.GetRequiredService<AppDbContext>();
+            // Migrate تُطبّق الترحيلات الناقصة فقط: لا تُعيد إنشاء قاعدة موجودة ولا تحذف أي جدول.
+            db.Database.Migrate();
+            await DbSeeder.SeedAsync(
+                db,
+                services.GetRequiredService<RoleManager<IdentityRole>>(),
+                services.GetRequiredService<UserManager<ApplicationUser>>(),
+                logger);
+        }
+        catch (Exception ex)
+        {
+            logger.LogError(ex, "تعذّر تهيئة قاعدة البيانات. تحقق من Connection String وشغّل الترحيلات.");
+        }
     }
 }
 
