@@ -118,11 +118,35 @@ public sealed class PayrollReportRow
     public decimal BasicSalary { get; set; }
     public decimal DailyRate { get; set; }
     public decimal HourlyRate { get; set; }
+
+    /// <summary>سعر الدقيقة (لحساب خصم التأخير) — يُستخدم في المعاينة الفورية على الشاشة.</summary>
+    public decimal MinuteRate { get; set; }
+
+    /// <summary>معامل الإضافي المطبَّق على السطر.</summary>
+    public decimal OvertimeMultiplier { get; set; } = 1m;
+
     public int AttendanceDays { get; set; }
     public int PaidRestDays { get; set; }
     public decimal PaidLeaveDays { get; set; }
     public decimal UnpaidLeaveDays { get; set; }
     public decimal AbsenceDays { get; set; }
+
+    /// <summary>الغياب الأصلي من البصمة (يبقى محفوظًا ولا يتأثر بالتعديل اليدوي).</summary>
+    public decimal OriginalAbsenceDays { get; set; }
+
+    /// <summary>أيام الإجازة السنوية المسجَّلة على السطر.</summary>
+    public decimal AnnualLeaveDays { get; set; }
+
+    /// <summary>رصيد الإجازة السنوية المتبقي للموظف (لحظي).</summary>
+    public decimal AnnualLeaveBalance { get; set; }
+
+    public decimal AnnualLeaveEntitlement { get; set; }
+    public decimal AnnualLeaveCarriedOver { get; set; }
+    public decimal AnnualLeaveTotal { get; set; }
+
+    /// <summary>ما خُصم فعليًا من الرصيد لهذا السطر (لمنع الخصم المزدوج).</summary>
+    public decimal AnnualLeaveBalanceApplied { get; set; }
+
     public int LateMinutes { get; set; }
     public decimal RawOvertimeHours { get; set; }
     public decimal ApprovedOvertimeHours { get; set; }
@@ -132,6 +156,7 @@ public sealed class PayrollReportRow
     public decimal Allowances { get; set; }
     public decimal AdditionalDaysCount { get; set; }
     public decimal AdditionalDaysAmount { get; set; }
+    public decimal? ExtraDaysRate { get; set; }
     public decimal LateDeduction { get; set; }
     public decimal AbsenceDeduction { get; set; }
     public decimal UnpaidLeaveDeduction { get; set; }
@@ -143,6 +168,19 @@ public sealed class PayrollReportRow
     public decimal NetSalary { get; set; }
     public PayrollStatus Status { get; set; }
     public string? CalculationDetails { get; set; }
+
+    /// <summary>هل عُدِّل السطر يدويًا؟</summary>
+    public bool IsManuallyAdjusted { get; set; }
+    public DateTime? LastEditedAt { get; set; }
+    public string? LastEditedBy { get; set; }
+
+    /// <summary>هل السطر بحاجة إلى مراجعة بشرية (بصمات ناقصة/تصنيف غير مؤكد/رصيد غير كافٍ)؟</summary>
+    public bool NeedsReview { get; set; }
+
+    /// <summary>حالة المراجعة النصية المعروضة في الكشف.</summary>
+    public string ReviewStatusText => NeedsReview
+        ? "يحتاج مراجعة"
+        : IsManuallyAdjusted ? "مُعدَّل يدويًا" : "محسوب آليًا";
 }
 
 public sealed class PayslipData
@@ -328,12 +366,12 @@ public class ReportService
         int payrollRunId, string? department = null, int? employeeId = null, PayrollStatus? status = null,
         CancellationToken ct = default)
     {
-        var q = _db.PayrollItems.AsNoTracking().Where(i => i.PayrollRunId == payrollRunId);
+        var q = _db.PayrollItems.AsNoTracking().Include(i => i.Employee).Where(i => i.PayrollRunId == payrollRunId);
         if (!string.IsNullOrWhiteSpace(department)) q = q.Where(i => i.DepartmentName == department);
         if (employeeId.HasValue) q = q.Where(i => i.EmployeeId == employeeId.Value);
         if (status.HasValue) q = q.Where(i => i.Status == status.Value);
 
-        return await q.OrderBy(i => i.EmployeeCode).Select(i => new PayrollReportRow
+        var rows = await q.OrderBy(i => i.EmployeeCode).Select(i => new PayrollReportRow
         {
             PayrollItemId = i.Id,
             EmployeeId = i.EmployeeId,
@@ -344,11 +382,22 @@ public class ReportService
             BasicSalary = i.BasicSalary,
             DailyRate = i.DailyRate,
             HourlyRate = i.HourlyRate,
+            MinuteRate = i.MinuteRate,
+            OvertimeMultiplier = i.OvertimeMultiplier,
             AttendanceDays = i.AttendanceDays,
             PaidRestDays = i.PaidRestDays,
             PaidLeaveDays = i.PaidLeaveDays,
             UnpaidLeaveDays = i.UnpaidLeaveDays,
             AbsenceDays = i.AbsenceDays,
+            OriginalAbsenceDays = i.OriginalAbsenceDays,
+            AnnualLeaveDays = i.AnnualLeaveDays,
+            AnnualLeaveBalanceApplied = i.AnnualLeaveBalanceApplied,
+            AnnualLeaveBalance = i.Employee != null ? i.Employee.AnnualLeaveBalance : 0m,
+            AnnualLeaveEntitlement = i.Employee != null ? i.Employee.AnnualLeaveEntitlement : 0m,
+            AnnualLeaveCarriedOver = i.Employee != null ? i.Employee.AnnualLeaveCarriedOver : 0m,
+            AnnualLeaveTotal = i.Employee != null
+                ? i.Employee.AnnualLeaveEntitlement + i.Employee.AnnualLeaveCarriedOver
+                : 0m,
             LateMinutes = i.LateMinutes,
             RawOvertimeHours = i.RawOvertimeHours,
             ApprovedOvertimeHours = i.ApprovedOvertimeHours,
@@ -358,6 +407,7 @@ public class ReportService
             Allowances = i.Allowances,
             AdditionalDaysCount = i.AdditionalDaysCount,
             AdditionalDaysAmount = i.AdditionalDaysAmount,
+            ExtraDaysRate = i.AdditionalDaysRate,
             LateDeduction = i.LateDeduction,
             AbsenceDeduction = i.AbsenceDeduction,
             UnpaidLeaveDeduction = i.UnpaidLeaveDeduction,
@@ -368,8 +418,49 @@ public class ReportService
             TotalDeductions = i.TotalDeductions,
             NetSalary = i.NetSalary,
             Status = i.Status,
-            CalculationDetails = i.CalculationDetails
+            CalculationDetails = i.CalculationDetails,
+            IsManuallyAdjusted = i.IsManuallyAdjusted,
+            LastEditedAt = i.LastEditedAt,
+            LastEditedBy = i.LastEditedBy
         }).ToListAsync(ct);
+
+        await MarkNeedsReviewAsync(payrollRunId, rows, ct);
+        return rows;
+    }
+
+    /// <summary>
+    /// يحدّد الأسطر التي تحتاج مراجعة بشرية: أيام ببصمة ناقصة/تصنيف غير مؤكد داخل فترة الكشف،
+    /// أو غياب أصلي لم يُعالج ولم يُحوَّل إلى إجازة، أو رصيد إجازة سنوية سالب.
+    /// </summary>
+    private async Task MarkNeedsReviewAsync(int payrollRunId, List<PayrollReportRow> rows, CancellationToken ct)
+    {
+        if (rows.Count == 0) return;
+
+        var run = await _db.PayrollRuns.AsNoTracking()
+            .Where(r => r.Id == payrollRunId)
+            .Select(r => new { r.Year, r.Month })
+            .FirstOrDefaultAsync(ct);
+        if (run is null) return;
+
+        var first = new DateTime(run.Year, run.Month, 1);
+        var last = first.AddMonths(1).AddDays(-1);
+
+        var flagged = await _db.DailyAttendances.AsNoTracking()
+            .Where(d => d.WorkDate >= first && d.WorkDate <= last
+                        && (d.HasIncompletePunches
+                            || d.PunchReviewStatus == ClassificationStatus.NeedsReview
+                            || d.Status == AttendanceStatus.NeedsReview))
+            .Select(d => d.EmployeeId)
+            .Distinct()
+            .ToListAsync(ct);
+        var flaggedSet = flagged.ToHashSet();
+
+        foreach (var r in rows)
+        {
+            r.NeedsReview = flaggedSet.Contains(r.EmployeeId)
+                            || (r.OriginalAbsenceDays > 0 && r.AbsenceDays <= 0 && r.AnnualLeaveDays <= 0)
+                            || r.AnnualLeaveBalance < 0;
+        }
     }
 
     /// <summary>بيانات كشف راتب موظف واحد.</summary>

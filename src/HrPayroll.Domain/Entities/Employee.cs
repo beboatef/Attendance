@@ -41,8 +41,17 @@ public class Employee : BaseEntity
     /// <summary>رصيد الإجازة السنوية المستحق في السنة.</summary>
     public decimal AnnualLeaveEntitlement { get; set; }
 
+    /// <summary>الرصيد المرحَّل من السنة السابقة (عند السماح بالترحيل).</summary>
+    public decimal AnnualLeaveCarriedOver { get; set; }
+
     /// <summary>الرصيد الحالي المتبقي من الإجازة السنوية.</summary>
     public decimal AnnualLeaveBalance { get; set; }
+
+    /// <summary>إجمالي الرصيد السنوي المتاح = المستحق + المرحَّل.</summary>
+    public decimal AnnualLeaveTotal => AnnualLeaveEntitlement + AnnualLeaveCarriedOver;
+
+    /// <summary>الأيام المستهلكة من الرصيد السنوي = المتاح − المتبقي.</summary>
+    public decimal AnnualLeaveUsed => Math.Max(0m, AnnualLeaveTotal - AnnualLeaveBalance);
 
     // ===== الحالة الوظيفية =====
     public DateTime HireDate { get; set; }

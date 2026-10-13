@@ -34,7 +34,25 @@ public class PayrollItem : BaseEntity
     public int PaidRestDays { get; set; }
     public decimal PaidLeaveDays { get; set; }
     public decimal UnpaidLeaveDays { get; set; }
+
+    /// <summary>الغياب المعتمد المستخدم في الخصم (قابل للتعديل يدويًا من كشف المرتبات).</summary>
     public decimal AbsenceDays { get; set; }
+
+    /// <summary>
+    /// الغياب الأصلي المستخرج من البصمة كما كان لحظة الاحتساب (لا يُستبدل بالتعديل اليدوي أبدًا).
+    /// يُحفظ للرجوع إليه ومقارنته بالغياب المعتمد.
+    /// </summary>
+    public decimal OriginalAbsenceDays { get; set; }
+
+    /// <summary>أيام الإجازة السنوية المستخدمة في هذا الكشف (تُخصم من رصيد الموظف ولا تُخصم كغياب).</summary>
+    public decimal AnnualLeaveDays { get; set; }
+
+    /// <summary>
+    /// مقدار ما تم خصمه فعليًا من رصيد الإجازة السنوية لهذا السطر.
+    /// يُستخدم لحساب الفرق (Delta) عند إعادة التعديل أو إعادة الاحتساب لمنع الخصم المزدوج.
+    /// </summary>
+    public decimal AnnualLeaveBalanceApplied { get; set; }
+
     public int LateMinutes { get; set; }
 
     // ===== الإضافي =====
@@ -44,6 +62,9 @@ public class PayrollItem : BaseEntity
     public decimal PaidOvertimeHours { get; set; }
     public decimal OvertimeMultiplier { get; set; } = 1m;
     public decimal OvertimeAmount { get; set; }
+
+    /// <summary>ساعات الإضافي المعتمدة يدويًا من كشف المرتبات (تتجاوز القيمة المستخرجة من البصمة).</summary>
+    public decimal? ManualOvertimeHours { get; set; }
 
     // ===== الخصومات =====
     public decimal LateDeduction { get; set; }
@@ -62,6 +83,10 @@ public class PayrollItem : BaseEntity
     public decimal Bonuses { get; set; }
     public decimal Allowances { get; set; }
     public decimal AdditionalDaysCount { get; set; }
+
+    /// <summary>سعر اليوم المستخدم في الأيام الإضافية (فارغ = الأجر اليومي للموظف).</summary>
+    public decimal? AdditionalDaysRate { get; set; }
+
     public decimal AdditionalDaysAmount { get; set; }
 
     // ===== الإجماليات =====
@@ -74,6 +99,13 @@ public class PayrollItem : BaseEntity
 
     public PayrollStatus Status { get; set; } = PayrollStatus.Computed;
     public string? Notes { get; set; }
+
+    // ===== أثر التعديل اليدوي (مراجعة وتدقيق) =====
+    /// <summary>هل عُدِّل هذا السطر يدويًا من كشف المرتبات؟</summary>
+    public bool IsManuallyAdjusted { get; set; }
+
+    public DateTime? LastEditedAt { get; set; }
+    public string? LastEditedBy { get; set; }
 
     /// <summary>تفاصيل الحساب خطوة بخطوة (JSON) لأغراض المراجعة والتدقيق.</summary>
     public string? CalculationDetails { get; set; }

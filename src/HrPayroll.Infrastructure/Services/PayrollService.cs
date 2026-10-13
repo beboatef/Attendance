@@ -19,6 +19,24 @@ public sealed class PayrollGenerationResult
     public List<string> Warnings { get; } = new();
 }
 
+/// <summary>تعديلات يدوية محفوظة على سطر كشف سابق لنفس الفترة (تُنقل للكشف الجديد عند إعادة الاحتساب).</summary>
+internal sealed class ManualCarry
+{
+    public decimal AbsenceDays { get; init; }
+    public decimal AnnualLeaveDays { get; init; }
+    public decimal AnnualLeaveBalanceApplied { get; init; }
+    public decimal UnpaidLeaveDays { get; init; }
+    public decimal Bonuses { get; init; }
+    public decimal Allowances { get; init; }
+    public decimal OtherDeductions { get; init; }
+    public decimal LoansTotal { get; init; }
+    public decimal AdditionalDaysCount { get; init; }
+    public decimal? AdditionalDaysRate { get; init; }
+    public decimal? ManualOvertimeHours { get; init; }
+    public string? LastEditedBy { get; init; }
+    public DateTime? LastEditedAt { get; init; }
+}
+
 /// <summary>جاهزية الفترة للاحتساب: عدد الأيام الناقصة وحالات المراجعة.</summary>
 public sealed class PayrollReadiness
 {
@@ -146,6 +164,37 @@ public class PayrollService
         }
 
         var previousVersion = existing.Count == 0 ? 0 : existing.Max(r => r.Version);
+
+        // تعديلات يدوية من كشوف سابقة لنفس الفترة: تُنقل كما هي حتى لا يفقد المستخدم عمله عند إعادة الاحتساب،
+        // ومعها مقدار الرصيد السنوي المخصوم سابقًا حتى لا يُخصم مرتين.
+        var previousRunIds = existing.Where(r => r.Status != PayrollStatus.Cancelled).Select(r => r.Id).ToList();
+        var previousManual = new Dictionary<int, ManualCarry>();
+        if (previousRunIds.Count > 0)
+        {
+            var previousItems = await _db.PayrollItems.AsNoTracking()
+                .Where(i => previousRunIds.Contains(i.PayrollRunId) && i.IsManuallyAdjusted)
+                .ToListAsync(ct);
+            foreach (var g in previousItems.GroupBy(i => i.EmployeeId))
+            {
+                var latest = g.OrderByDescending(i => i.Id).First();
+                previousManual[g.Key] = new ManualCarry
+                {
+                    AbsenceDays = latest.AbsenceDays,
+                    AnnualLeaveDays = latest.AnnualLeaveDays,
+                    AnnualLeaveBalanceApplied = latest.AnnualLeaveBalanceApplied,
+                    UnpaidLeaveDays = latest.UnpaidLeaveDays,
+                    Bonuses = latest.Bonuses,
+                    Allowances = latest.Allowances,
+                    OtherDeductions = latest.OtherDeductions,
+                    LoansTotal = latest.LoansTotal,
+                    AdditionalDaysCount = latest.AdditionalDaysCount,
+                    AdditionalDaysRate = latest.AdditionalDaysRate,
+                    ManualOvertimeHours = latest.ManualOvertimeHours,
+                    LastEditedBy = latest.LastEditedBy,
+                    LastEditedAt = latest.LastEditedAt
+                };
+            }
+        }
 
         await using var tx = await _db.Database.BeginTransactionAsync(ct);
 
@@ -316,6 +365,41 @@ public class PayrollService
                 OvertimeMultiplier = multiplier
             };
 
+            // إعادة تطبيق التعديلات اليدوية السابقة (إن وُجدت) على مدخلات الحساب
+            previousManual.TryGetValue(emp.Id, out var carried);
+            if (carried is not null)
+            {
+                var carriedOvertimeMinutes = carried.ManualOvertimeHours.HasValue
+                    ? (int)Math.Round(carried.ManualOvertimeHours.Value * 60m, MidpointRounding.AwayFromZero)
+                    : inputs.ApprovedOvertimeMinutes;
+
+                inputs = new PayrollInputs
+                {
+                    BasicSalary = inputs.BasicSalary,
+                    DailyRateOverride = inputs.DailyRateOverride,
+                    StandardWorkHours = inputs.StandardWorkHours,
+                    LateMinutes = inputs.LateMinutes,
+                    RawOvertimeMinutes = Math.Max(inputs.RawOvertimeMinutes, carriedOvertimeMinutes),
+                    ApprovedOvertimeMinutes = carriedOvertimeMinutes,
+                    PaidOvertimeMinutes = carried.ManualOvertimeHours.HasValue
+                        ? carriedOvertimeMinutes
+                        : inputs.PaidOvertimeMinutes,
+                    AttendanceDays = inputs.AttendanceDays,
+                    PaidRestDays = inputs.PaidRestDays,
+                    PaidLeaveDays = inputs.PaidLeaveDays,
+                    UnpaidLeaveDays = carried.UnpaidLeaveDays,
+                    AbsenceDays = carried.AbsenceDays,
+                    Advances = carried.LoansTotal,
+                    DeductionsTotal = inputs.DeductionsTotal,
+                    OtherDeductions = carried.OtherDeductions,
+                    Bonuses = carried.Bonuses,
+                    Allowances = carried.Allowances,
+                    AdditionalDays = carried.AdditionalDaysCount,
+                    AdditionalDaysRate = carried.AdditionalDaysRate,
+                    OvertimeMultiplier = inputs.OvertimeMultiplier
+                };
+            }
+
             var computation = PayrollCalculator.Compute(inputs, policy);
 
             var item = new PayrollItem
@@ -358,6 +442,13 @@ public class PayrollService
                 TotalDeductions = computation.TotalDeductions,
                 GrossSalary = computation.GrossSalary,
                 NetSalary = computation.NetSalary,
+                OriginalAbsenceDays = absenceDays,
+                AnnualLeaveDays = carried?.AnnualLeaveDays ?? 0m,
+                AnnualLeaveBalanceApplied = carried?.AnnualLeaveBalanceApplied ?? 0m,
+                ManualOvertimeHours = carried?.ManualOvertimeHours,
+                IsManuallyAdjusted = carried is not null,
+                LastEditedBy = carried?.LastEditedBy,
+                LastEditedAt = carried?.LastEditedAt,
                 Status = PayrollStatus.Computed,
                 CalculationDetails = computation.CalculationDetails,
                 Notes = $"أيام راحة مدفوعة: {paidRestDays} | عطلات رسمية مدفوعة: {paidHolidayDays} (مشمولة في الراتب الشهري)",
@@ -509,6 +600,23 @@ public class PayrollService
 
         var itemIds = await _db.PayrollItems.Where(i => i.PayrollRunId == payrollRunId).Select(i => i.Id).ToListAsync(ct);
         await UnlinkAsync(itemIds, ct);
+
+        // إعادة رصيد الإجازة السنوية الذي خُصم من هذا الكشف حتى لا يبقى مخصومًا بلا مقابل
+        var appliedItems = await _db.PayrollItems
+            .Where(i => i.PayrollRunId == payrollRunId && i.AnnualLeaveBalanceApplied > 0)
+            .ToListAsync(ct);
+        foreach (var ai in appliedItems)
+        {
+            var emp = await _db.Employees.FirstOrDefaultAsync(e => e.Id == ai.EmployeeId, ct);
+            if (emp is not null)
+            {
+                emp.AnnualLeaveBalance = PayrollCalculator.Round2(emp.AnnualLeaveBalance + ai.AnnualLeaveBalanceApplied);
+                emp.UpdatedAt = DateTime.UtcNow;
+                emp.UpdatedBy = user;
+            }
+            ai.AnnualLeaveBalanceApplied = 0m;
+            ai.AnnualLeaveDays = 0m;
+        }
 
         var previous = run.Status.ToString();
         run.Status = PayrollStatus.Cancelled;

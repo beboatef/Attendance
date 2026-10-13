@@ -116,28 +116,36 @@ public class ExcelExportService
         var settings = await _settings.GetAllAsync(ct);
         var currency = settings.TryGetValue(SettingKeys.Currency, out var c) ? c : "EGP";
 
-        AddSheet(wb, "Payroll", $"كشف رواتب {run.Year}-{run.Month:00}", $"الإصدار {run.Version} | العملة {currency}",
+        // نفس أعمدة جدول كشف المرتبات المعروض على الشاشة وبالترتيب نفسه.
+        AddSheet(wb, "Payroll", $"كشف المرتبات {run.Year}-{run.Month:00}", $"الإصدار {run.Version} | العملة {currency}",
             new[]
             {
-                "م", "كود الموظف", "الاسم", "القسم", "المسمى", "الراتب الأساسي", "الأجر اليومي", "أجر الساعة",
-                "أيام حضور", "راحة مدفوعة", "إجازات مدفوعة", "إجازات بدون أجر", "أيام غياب", "تأخير (دقيقة)",
-                "إضافي خام (ساعة)", "إضافي معتمد (ساعة)", "إضافي مدفوع (ساعة)", "قيمة الإضافي",
-                "مكافآت", "بدلات", "أيام إضافية", "قيمة الأيام الإضافية",
-                "خصم تأخير", "خصم غياب", "خصم إجازة بدون أجر", "سلف", "خصومات", "خصومات أخرى",
-                "إجمالي الاستحقاقات", "إجمالي الخصومات", "صافي الراتب", "الحالة"
+                "م", "كود الموظف", "الاسم", "القسم",
+                "الراتب الأساسي", "أيام الحضور", "أيام راحة مدفوعة", "إجازة مدفوعة",
+                "الغياب من البصمة", "الغياب المعتمد", "أيام الإجازة السنوية", "رصيد الإجازة السنوية",
+                "إجمالي الرصيد السنوي", "إجازات أخرى بدون أجر", "دقائق التأخير",
+                "ساعات الإضافي المعتمدة", "قيمة الإضافي",
+                "المكافآت", "البدلات", "أيام إضافية", "قيمة الأيام الإضافية",
+                "السلف", "خصومات أخرى",
+                "خصم التأخير", "خصم الغياب", "خصم إجازة بدون أجر",
+                "إجمالي الاستحقاقات", "إجمالي الخصومات", "صافي الراتب", "حالة المراجعة"
             },
             rows.Select((r, i) => new object?[]
             {
-                i + 1, r.EmployeeCode, r.EmployeeName, r.Department, r.JobTitle, r.BasicSalary, r.DailyRate, r.HourlyRate,
-                r.AttendanceDays, r.PaidRestDays, r.PaidLeaveDays, r.UnpaidLeaveDays, r.AbsenceDays, r.LateMinutes,
-                r.RawOvertimeHours, r.ApprovedOvertimeHours, r.PaidOvertimeHours, r.OvertimeAmount,
+                i + 1, r.EmployeeCode, r.EmployeeName, r.Department,
+                r.BasicSalary, r.AttendanceDays, r.PaidRestDays, r.PaidLeaveDays,
+                r.OriginalAbsenceDays, r.AbsenceDays, r.AnnualLeaveDays, r.AnnualLeaveBalance,
+                r.AnnualLeaveTotal, r.UnpaidLeaveDays, r.LateMinutes,
+                r.ApprovedOvertimeHours, r.OvertimeAmount,
                 r.Bonuses, r.Allowances, r.AdditionalDaysCount, r.AdditionalDaysAmount,
-                r.LateDeduction, r.AbsenceDeduction, r.UnpaidLeaveDeduction, r.LoansTotal, r.DeductionsTotal, r.OtherDeductions,
-                r.GrossEarnings, r.TotalDeductions, r.NetSalary, PayrollStatusText(r.Status)
+                r.LoansTotal, r.OtherDeductions,
+                r.LateDeduction, r.AbsenceDeduction, r.UnpaidLeaveDeduction,
+                r.GrossEarnings, r.TotalDeductions, r.NetSalary, r.ReviewStatusText
             }),
-            summary: $"عدد الموظفين: {rows.Count} | إجمالي الاستحقاقات: {rows.Sum(r => r.GrossEarnings):N2} | إجمالي الخصومات: {rows.Sum(r => r.TotalDeductions):N2} | صافي الكشف: {rows.Sum(r => r.NetSalary):N2} {currency}",
-            moneyColumns: Enumerable.Range(6, 3).Concat(Enumerable.Range(18, 11)).ToArray(),
-            decimalColumns: new[] { 11, 12, 13, 15, 16, 17, 21 });
+            summary: $"عدد الموظفين: {rows.Count} | إجمالي الاستحقاقات: {rows.Sum(r => r.GrossEarnings):N2} | " +
+                     $"إجمالي الخصومات: {rows.Sum(r => r.TotalDeductions):N2} | صافي الكشف: {rows.Sum(r => r.NetSalary):N2} {currency}",
+            moneyColumns: new[] { 5, 17, 18, 19, 21, 22, 23, 24, 25, 26, 27, 28, 29 },
+            decimalColumns: new[] { 8, 9, 10, 11, 12, 13, 14, 15, 16, 20 });
     }
 
     /// <summary>كشف راتب موظف واحد (Payslip) بصيغة Excel.</summary>

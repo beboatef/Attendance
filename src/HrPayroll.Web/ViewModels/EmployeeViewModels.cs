@@ -52,9 +52,22 @@ public class EmployeeFormViewModel
     [Display(Name = "استحقاق الإجازة السنوية (يوم)")]
     public decimal AnnualLeaveEntitlement { get; set; }
 
+    [Range(0, 365, ErrorMessage = "الرصيد المرحَّل غير صالح")]
+    [Display(Name = "الرصيد المرحَّل من السنة السابقة (يوم)")]
+    public decimal AnnualLeaveCarriedOver { get; set; }
+
     [Range(0, 365, ErrorMessage = "الرصيد المتبقي غير صالح")]
     [Display(Name = "الرصيد المتبقي من الإجازة")]
     public decimal AnnualLeaveBalance { get; set; }
+
+    /// <summary>إجمالي الرصيد المتاح = المستحق + المرحَّل.</summary>
+    public decimal AnnualLeaveTotal => AnnualLeaveEntitlement + AnnualLeaveCarriedOver;
+
+    /// <summary>الأيام المستهلكة = المتاح − المتبقي.</summary>
+    public decimal AnnualLeaveUsed => Math.Max(0m, AnnualLeaveTotal - AnnualLeaveBalance);
+
+    /// <summary>رصيد مقترح لموظف جديد = المستحق + المرحَّل.</summary>
+    public decimal SuggestedBalance => AnnualLeaveTotal;
 
     [Required(ErrorMessage = "تاريخ التعيين مطلوب")]
     [DataType(DataType.Date)]
@@ -108,6 +121,7 @@ public class EmployeeFormViewModel
         DailyRate = e.DailyRate,
         StandardWorkHours = e.StandardWorkHours <= 0 ? 8m : e.StandardWorkHours,
         AnnualLeaveEntitlement = e.AnnualLeaveEntitlement,
+        AnnualLeaveCarriedOver = e.AnnualLeaveCarriedOver,
         AnnualLeaveBalance = e.AnnualLeaveBalance,
         HireDate = e.HireDate,
         EmploymentStatus = e.EmploymentStatus,

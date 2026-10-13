@@ -210,9 +210,13 @@ public class ReportExportTests
         {
             var row = Enumerable.Range(6, items.Count)
                 .First(r => ws.Cell(r, 2).GetString() == item.EmployeeCode);
-            Assert.Equal(item.NetSalary, ws.Cell(row, 31).GetValue<decimal>());
-            Assert.Equal(item.GrossEarnings, ws.Cell(row, 29).GetValue<decimal>());
-            Assert.Equal(item.TotalDeductions, ws.Cell(row, 30).GetValue<decimal>());
+            // ترتيب أعمدة الكشف: 27 إجمالي الاستحقاقات، 28 إجمالي الخصومات، 29 صافي الراتب
+            Assert.Equal(item.GrossEarnings, ws.Cell(row, 27).GetValue<decimal>());
+            Assert.Equal(item.TotalDeductions, ws.Cell(row, 28).GetValue<decimal>());
+            Assert.Equal(item.NetSalary, ws.Cell(row, 29).GetValue<decimal>());
+            Assert.Equal(item.OriginalAbsenceDays, ws.Cell(row, 9).GetValue<decimal>());
+            Assert.Equal(item.AbsenceDays, ws.Cell(row, 10).GetValue<decimal>());
+            Assert.Equal(item.AnnualLeaveDays, ws.Cell(row, 11).GetValue<decimal>());
         }
     }
 

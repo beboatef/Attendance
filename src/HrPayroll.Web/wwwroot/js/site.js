@@ -73,6 +73,50 @@
         });
     });
 
+
+    // ---------- القائمة الجانبية: الطي والفتح ----------
+    var shell = document.getElementById('appShell');
+    var sideToggle = document.getElementById('sideToggle');
+    var mobileMenu = document.getElementById('mobileMenu');
+    var backdrop = document.getElementById('sideBackdrop');
+
+    if (shell && sideToggle) {
+        try {
+            if (localStorage.getItem('hr.sidebar.collapsed') === '1') shell.classList.add('collapsed');
+        } catch (e) { /* التخزين المحلي غير متاح */ }
+
+        sideToggle.addEventListener('click', function () {
+            if (window.matchMedia('(max-width: 992px)').matches) {
+                shell.classList.remove('sidebar-open');
+                return;
+            }
+            shell.classList.toggle('collapsed');
+            try {
+                localStorage.setItem('hr.sidebar.collapsed', shell.classList.contains('collapsed') ? '1' : '0');
+            } catch (e) { /* تجاهل */ }
+        });
+    }
+
+    if (shell && mobileMenu) {
+        mobileMenu.addEventListener('click', function () { shell.classList.add('sidebar-open'); });
+    }
+    if (shell && backdrop) {
+        backdrop.addEventListener('click', function () { shell.classList.remove('sidebar-open'); });
+    }
+    // عند طي القائمة: فتح المجموعة يوسّعها أولًا حتى لا تختفي الروابط
+    document.querySelectorAll('.side-nav summary').forEach(function (s) {
+        s.addEventListener('click', function () {
+            if (shell && shell.classList.contains('collapsed') && !window.matchMedia('(max-width: 992px)').matches) {
+                shell.classList.remove('collapsed');
+                try { localStorage.setItem('hr.sidebar.collapsed', '0'); } catch (e) { /* تجاهل */ }
+            }
+        });
+    });
+
+    // ---------- منع فقدان التعديلات عند وجود نماذج بها data-guard ----------
+    document.querySelectorAll('form[data-dirty-guard]').forEach(function (form) {
+        form.addEventListener('submit', function () { form.dataset.submitting = '1'; });
+    });
     // ---------- تحديد الكل في جداول الاختيار ----------
     document.querySelectorAll('[data-check-all]').forEach(function (master) {
         var group = document.querySelectorAll(master.dataset.checkAll);

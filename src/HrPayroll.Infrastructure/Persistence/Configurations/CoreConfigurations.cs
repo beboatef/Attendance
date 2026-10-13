@@ -58,6 +58,7 @@ public class EmployeeConfiguration : IEntityTypeConfiguration<Employee>
         b.Property(x => x.DailyRate).HasColumnType("decimal(18,4)");
         b.Property(x => x.StandardWorkHours).HasColumnType("decimal(5,2)");
         b.Property(x => x.AnnualLeaveEntitlement).HasColumnType("decimal(6,2)");
+        b.Property(x => x.AnnualLeaveCarriedOver).HasColumnType("decimal(6,2)");
         b.Property(x => x.AnnualLeaveBalance).HasColumnType("decimal(6,2)");
         b.Property(x => x.Email).HasMaxLength(200);
         b.Property(x => x.Phone).HasMaxLength(50);

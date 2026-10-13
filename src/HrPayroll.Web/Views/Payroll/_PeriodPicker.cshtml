@@ -1,0 +1,40 @@
+@model HrPayroll.Web.ViewModels.PayrollIndexViewModel
+@{
+    var months = new[] { "يناير","فبراير","مارس","أبريل","مايو","يونيو","يوليو","أغسطس","سبتمبر","أكتوبر","نوفمبر","ديسمبر" };
+}
+<div class="card no-print">
+    <div class="card-body">
+        <form method="get" class="filters">
+            <div class="field">
+                <label>الشهر</label>
+                <select name="month">
+                    @for (var m = 1; m <= 12; m++)
+                    {
+                        <option value="@m" selected="@(m == Model.Month)">@months[m - 1]</option>
+                    }
+                </select>
+            </div>
+            <div class="field">
+                <label>السنة</label>
+                <input type="number" name="year" value="@Model.Year" />
+            </div>
+            <div class="field">
+                <label>القسم</label>
+                <select name="department">
+                    <option value="">كل الأقسام</option>
+                    @foreach (var d in Model.Departments)
+                    {
+                        <option value="@d" selected="@(Model.Department == d)">@d</option>
+                    }
+                </select>
+            </div>
+            <div class="field">
+                <label>بحث</label>
+                <input type="search" name="search" value="@Model.Search" placeholder="اسم الموظف أو الكود" />
+            </div>
+            <div class="actions">
+                <button type="submit" class="btn btn-primary">عرض</button>
+            </div>
+        </form>
+    </div>
+</div>

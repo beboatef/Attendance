@@ -18,7 +18,7 @@
 | تصدير PDF | QuestPDF (مع خط عربي `Cairo.ttf`) |
 | قراءة ملفات البصمة | ExcelDataReader (xls/xlsx) + قارئ مخصص لـ Excel 2003 XML و CSV و HTML |
 | المصادقة | ASP.NET Core Identity مع أدوار (Admin / HR / Accountant / Viewer) |
-| الاختبارات | xUnit (111 اختبارًا) |
+| الاختبارات | xUnit (126 اختبارًا) |
 
 ## 2) هيكل المشروع
 
@@ -41,10 +41,14 @@ src/
                              EmployeeImportService, EmployeeColumnMapper
     Services/                SettingsService, ShiftService, ShiftResolver,
                              AttendanceProcessingService, AttendanceCorrectionService,
-                             LeaveService, PayrollService, ReportService,
+                             LeaveService, PayrollService, PayrollSheetService, ReportService,
                              ExcelExportService, PdfExportService, DashboardService, AuditService
     Seed/                    DbSeeder (الورديات والإعدادات والمستخدم المدير)
   HrPayroll.Web/             تطبيق MVC: Controllers + ViewModels + Views (RTL) + Program.cs
+    Views/Payroll/           Index (كشف المرتبات القابل للتحرير) + _RunHistory + _PeriodPicker
+    wwwroot/css/site.css     نظام التصميم الموحّد (RTL + جداول + ورقة شبيهة بـ Excel)
+    wwwroot/js/payroll-sheet.js  تحرير الخلايا وحفظها والتحقق قبل الحفظ
+    wwwroot/fonts/Cairo.ttf  الخط العربي المستخدم في الواجهة (بدون إنترنت)
 tests/
   HrPayroll.Tests/           اختبارات آلية لكل الحالات المطلوبة
 ```
@@ -352,6 +356,20 @@ dotnet run --project src/HrPayroll.Web
 الأجر اليومي، ويمكن تعطيلهما من شاشة الإعدادات. التأمينات والضرائب لم تُنفَّذ كمكوّن
 مستقل، ولا تُخصم أي قيمة غير مُفعَّلة صراحةً.
 
+### فصل الغياب الأصلي عن المعتمد
+كل سطر راتب يحفظ قيمتين مستقلتين للغياب:
+
+- `OriginalAbsenceDays` — الغياب كما استُخرج من البصمة لحظة الاحتساب، **لا يتغير أبدًا** بعد التعديل اليدوي.
+- `AbsenceDays` — الغياب **المعتمد** بعد المراجعة، وهو وحده الذي يدخل في خصم الغياب.
+
+وبالإضافة إلى ذلك يُحفظ `AnnualLeaveDays` (أيام الإجازة السنوية المستهلكة في الشهر) و
+`AnnualLeaveBalanceApplied` (ما خُصم فعليًا من رصيد الموظف لهذا السطر). الخصم من الرصيد
+يتم بالفرق `جديد − مُطبَّق سابقًا`، لذلك إعادة الحفظ أو إعادة الاحتساب أو إعادة فتح الكشف
+**لا تُخصم الرصيد مرتين**، وإلغاء الكشف يُعيد الرصيد كاملًا.
+
+رصيد الموظف السنوي = `AnnualLeaveEntitlement` (المستحق) + `AnnualLeaveCarriedOver` (المرحَّل)،
+والمتبقي هو `AnnualLeaveBalance`، والمستهلك = المتاح − المتبقي.
+
 - لكل موظف سطر مستقل في كل شهر (`PayrollItem`).
 - لكل إصدار سجل مستقل مع رقم إصدار وحالة
   (`Draft / Computed / Approved / Locked / Reopened / Cancelled`).
@@ -369,7 +387,7 @@ dotnet run --project src/HrPayroll.Web
 4. `Daily Attendance` — ملخص اليوم لكل موظف: القسم، المسمى، الوردية، الدخول، الخروج، ساعات العمل، التأخير، الانصراف المبكر، الإضافي المحسوب والمعتمد، الحالة، حالة المراجعة.
 5. `Late Report` — الحالات المتأخرة فقط مع دقائق التأخير.
 6. `Overtime Report` — الوردية، نهاية الوردية، الخروج الفعلي، الإضافي المحسوب والمعتمد.
-7. `Payroll` — كشف رواتب الشهر الذي تنتهي فيه الفترة (أحدث إصدار غير ملغى). إن لم يوجد كشف لهذا الشهر تُكتب رسالة واضحة في الورقة بدل أرقام مُفترضة.
+7. `Payroll` — كشف رواتب الشهر الذي تنتهي فيه الفترة (أحدث إصدار غير ملغى)، **بنفس أعمدة الجدول المعروض على الشاشة الثلاثين**: الراتب الأساسي، أيام الحضور، الراحة المدفوعة، الإجازة المدفوعة، الغياب من البصمة، الغياب المعتمد، أيام الإجازة السنوية، رصيد الإجازة السنوية، إجمالي الرصيد السنوي، الإجازات الأخرى بدون أجر، دقائق التأخير، ساعات الإضافي المعتمدة، قيمة الإضافي، المكافآت، البدلات، الأيام الإضافية وقيمتها، السلف، الخصومات الأخرى، خصم التأخير، خصم الغياب، خصم الإجازة بدون أجر، إجمالي الاستحقاقات، إجمالي الخصومات، صافي الراتب، وحالة المراجعة. القيم المصدَّرة هي المحفوظة والمعتمدة (بما فيها التعديلات اليدوية) وليست قيمًا افتراضية. إن لم يوجد كشف لهذا الشهر تُكتب رسالة واضحة في الورقة بدل أرقام مُفترضة.
 8. `Exceptions` — كل ما يحتاج مراجعة بشرية: بصمة دخول/خروج مفقودة، تصنيف بحاجة لمراجعة، بصمة غير مصنّفة، وكود بصمة غير مرتبط بأي موظف.
 
 ورقتا Entry/Exit تعكسان نتيجة التصنيف الفعلية المحفوظة في `AttendanceEvents` وليست
@@ -395,7 +413,11 @@ dotnet run --project src/HrPayroll.Web
 - التحقق من الصلاحيات **على الخادم** عبر `[Authorize(Policy = ...)]` على كل
   Controller، وليس بإخفاء الأزرار فقط.
 - كل العمليات الحساسة (تعديل موظف، اعتماد إضافي، اعتماد/إلغاء كشف رواتب، تعديل
-  إعدادات، تعديل خصم/سلفة) تُسجَّل في `AuditLogs`.
+  إعدادات، تعديل خصم/سلفة، **وتعديل أي سطر في كشف المرتبات**) تُسجَّل في `AuditLogs`
+  بالقيمة الأصلية والقيمة المعدلة واسم المستخدم ووقت التعديل.
+- تعديل كشف المرتبات محمي بسياسة مستقلة `EditPayrollSheet`
+  ([Authorize(Policy = ...)] على إجراء `Payroll/SaveRows`)، ودور HR/Viewer لا يستطيع
+  الوصول إليها حتى لو استُدعيت الواجهة البرمجية مباشرة (`302 → /Account/AccessDenied`).
 
 ## 16) الاختبارات
 
@@ -403,7 +425,7 @@ dotnet run --project src/HrPayroll.Web
 dotnet test HrPayroll.sln -c Release
 ```
 
-النتيجة الحالية: **111 اختبارًا ناجحًا** (0 فشل، 0 متجاوَز). تغطية الحالات المطلوبة:
+النتيجة الحالية: **126 اختبارًا ناجحًا** (0 فشل، 0 متجاوَز). تغطية الحالات المطلوبة:
 
 | # | الحالة | أمثلة من أسماء الاختبارات |
 |---|---|---|
@@ -427,6 +449,10 @@ dotnet test HrPayroll.sln -c Release
 | 18 | تصحيح الحضور يدويًا | `Manual_Correction_Records_Original_Reason_And_User`، `Correction_Without_Reason_Is_Rejected`، `Attendance_Correction_Is_Blocked_For_A_Locked_Payroll_Period` |
 | 19 | تناسق التقارير والتصدير | `Report_Rows_Match_The_Stored_Daily_Attendance_Values`، `Excel_Daily_Export_Contains_Exactly_The_Reported_Rows`، `Excel_Payroll_Export_Matches_Stored_Payroll_Items`، `Pdf_Payroll_And_Payslip_Are_Valid_Pdf_Files` |
 | 20 | استيراد الموظفين من Excel | `Employee_Import_Preview_Validates_And_Detects_Duplicates`، `Employee_Import_CreateAndUpdate_Updates_With_Audit_Trail` |
+| 21 | تعديل الغياب والإجازات من الكشف | `Absence_Edit_And_Annual_Leave_Conversion_Deducts_Two_Days_Only`، `Saving_The_Same_Annual_Leave_Twice_Does_Not_Deduct_The_Balance_Twice`، `Reducing_Annual_Leave_Returns_Days_To_The_Balance`، `Insufficient_Annual_Balance_Requires_Confirmation_Then_Can_Be_Overridden` |
+| 22 | المكافآت/البدلات/الخصومات/الإضافي/الأيام الإضافية من الكشف | `Bonus_And_Allowance_Edits_Recompute_Gross_And_Net`، `Other_Deduction_Edit_Is_Applied_And_Saved`، `Overtime_Hours_Edit_Uses_Hourly_Rate_Without_Any_Multiplier`، `Extra_Days_With_Explicit_Rate_Are_Priced_Separately` |
+| 23 | حفظ التعديلات ومراجعتها ومنع التعديل غير المصرح | `Saved_Edits_Are_Returned_With_The_Row_And_Persisted`، `Every_Saved_Edit_Is_Written_To_The_Audit_Log`، `Editing_An_Approved_Or_Locked_Sheet_Is_Rejected`، `Negative_Values_And_Impossible_Leave_Totals_Are_Rejected`، `Regenerating_The_Sheet_Keeps_Manual_Edits_Without_Deducting_The_Balance_Again`، `Cancelling_The_Sheet_Returns_The_Consumed_Annual_Leave_Balance` |
+| 24 | تصدير الكشف بأعمدته وقيمه المحفوظة | `Payroll_Export_Contains_All_Sheet_Columns_And_The_Saved_Values` |
 
 ## 17) الإعدادات (Settings)
 
@@ -490,7 +516,8 @@ dotnet test HrPayroll.sln -c Release
 | اعتماد الإضافي (بدون أي مضاعفة) | `OvertimeController`, `Views/Overtime` |
 | الرواتب ودورة العمل (احتساب/مراجعة/اعتماد/قفل/إعادة فتح) | `PayrollService`, `PayrollCalculator`, `Views/Payroll` |
 | التقارير والتصدير: ملف شامل بـ 8 أوراق (Raw Punches / Entry / Exit / Daily Attendance / Late / Overtime / Payroll / Exceptions) + PDF وكشوف الرواتب | `ReportService`, `ExcelExportService`, `PdfExportService`, `Views/Reports` |
-| واجهة عربية RTL حديثة | `Views/Shared/_Layout.cshtml`, `wwwroot/css/site.css`, `wwwroot/js/site.js` |
+| واجهة عربية RTL حديثة بنظام تصميم موحّد وقائمة جانبية واحدة من 5 أقسام | `Views/Shared/_Layout.cshtml`, `wwwroot/css/site.css`, `wwwroot/js/site.js` |
+| **شاشة كشف المرتبات الشهري القابلة للتحرير (شبيهة بـ Excel)** مع تعديل الغياب/الإجازات/المكافآت/الخصومات/الإضافي وحفظها على السيرفر | `PayrollSheetService`, `Views/Payroll/Index.cshtml`, `Views/Payroll/_RunHistory.cshtml`, `Views/Payroll/_PeriodPicker.cshtml`, `wwwroot/js/payroll-sheet.js`, `PayrollController.SaveRows/RowBreakdown` |
 | سجل التدقيق والصلاحيات | `AuditService`, `AppRoles`/`AppPolicies` في `Program.cs` |
 
 أوامر سريعة:
@@ -500,3 +527,51 @@ dotnet build HrPayroll.sln -c Release
 dotnet test HrPayroll.sln -c Release
 dotnet run --project src\HrPayroll.Web -c Release
 ```
+
+## 21) كشف المرتبات الشهري — شاشة واحدة شبيهة بـ Excel
+
+القائمة الجانبية صارت **5 أقسام** بدل 15+ رابطًا متفرقًا:
+لوحة التحكم · الموظفون (قائمة/إضافة/استيراد/الأقسام/المسميات) ·
+الحضور والانصراف (الاستيراد/اليومي/الاستثناءات/الورديات/العطلات/الإجازات/تحويل غياب) ·
+كشف المرتبات (الكشف الشهري/اعتماد الإضافي/السلف/الخصومات) · الإعدادات (الإعدادات/المستخدمون).
+لم تُحذف أي وظيفة؛ أُعيد ترتيبها فقط داخل مجموعات قابلة للطي، والتقارير والتصدير رابط مستقل.
+
+### كيف تستخدم الكشف؟
+1. **الفترة**: اختر الشهر والسنة (أو استخدم «السابق/التالي») ويمكن التصفية بالقسم أو البحث باسم/كود الموظف.
+2. **تجهيز البيانات**: «استيراد البصمات» ← معالجة الحضور ← «تحديث الحسابات» لإنشاء الكشف.
+3. **التعديل المباشر**: الخلايا ذات الخلفية الصفراء قابلة للتحرير — الغياب المعتمد،
+   الإجازة السنوية، الإجازة بدون أجر، ساعات الإضافي، المكافآت، البدلات، الأيام الإضافية
+   وسعر اليوم، السلف، والخصومات الأخرى. الخلايا الزرقاء مستوردة من البصمة (لا تُحرَّر)
+   والرمادية نتائج محسوبة تلقائيًا. الألوان موضّحة في مفتاح أعلى الجدول.
+4. **معاينة فورية**: عند الكتابة تُحدَّث قيمة الإضافي والاستحقاقات والخصومات والصافي
+   والإجماليات فورًا بنفس معادلات السيرفر، لكن **الحساب الرسمي والحفظ يتمّان على السيرفر**.
+5. **الحفظ**: زر «حفظ التعديلات» أعلى الجدول، مع مؤشر «تغييرات غير محفوظة» وتحذير عند
+   مغادرة الصفحة. يمكن تشغيل «حفظ تلقائي» ليُحفظ السطر عند الخروج من الخانة.
+   للتراجع قبل الحفظ: «تراجع عن التغييرات». ولرؤية تفصيل الحساب خطوة بخطوة: زر «…» في آخر السطر.
+6. **سقف القواعد**: لا تُقبل قيم سالبة، ولا يتجاوز (الغياب المعتمد + الإجازة السنوية +
+   الإجازات الأخرى) أيام العمل في الفترة. وإذا تجاوزت الإجازة السنوية رصيد الموظف تظهر
+   رسالة تحذير بالرصيد المتاح ويُطلب تأكيد صريح قبل الحفظ (يظهر الرصيد السالب بالأحمر في
+   حالة التأكيد). وإذا فشل الحفظ تبقى القيم التي أدخلتها كما هي ولا تُمحى.
+7. **الاعتماد**: «اعتماد الكشف» يوقف التعديل المباشر، و«إلغاء الكشف» يُعيد رصيد الإجازات
+   المخصوم ويفصل السلف والخصومات. للتصحيح بعد الاعتماد/القفل: «إعادة فتح» بسبب مُسجَّل.
+
+### سلوكيات محسومة
+- **إعادة الاحتساب لا تفقد عملك**: التعديلات اليدوية تُنقل للإصدار الجديد، ومعها مقدار
+  الرصيد المخصوم سابقًا حتى لا يُخصم مرتين.
+- **الإجازة السنوية ليست غيابًا**: تُخصم من الرصيد فقط ولا تُنتج أي خصم مالي.
+- **الغياب من البصمة يبقى ظاهرًا** بجانب الغياب المعتمد للمقارنة والمراجعة.
+- **الإضافي بدون أي مضاعف**: القيمة = ساعات معتمدة × (الأجر اليومي ÷ 8).
+- **الرصيد المرحَّل** يُسجَّل لكل موظف من شاشة الموظف (استحقاق + مرحَّل، والرصيد المتبقي
+  يُعرض مباشرة في عمود «رصيد السنوية» داخل الكشف).
+
+أوامر سريعة للتحديث:
+
+```bat
+dotnet ef migrations add <Name> -p src\HrPayroll.Infrastructure -s src\HrPayroll.Web
+dotnet build HrPayroll.sln -c Release
+dotnet test  HrPayroll.sln -c Release
+```
+
+> الترحيل الأخير: `20261013130424_PayrollSheetEditing_LeaveBalances` (إضافي فقط: أعمدة
+> جديدة في `PayrollItems` و`Employees`، بدون حذف أو إعادة إنشاء أي جدول). يُطبَّق تلقائيًا
+> عند الإقلاع إذا كان `Database:ApplyMigrationsOnStartup = true`.

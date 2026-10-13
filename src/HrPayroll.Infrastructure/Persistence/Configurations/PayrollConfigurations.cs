@@ -99,6 +99,11 @@ public class PayrollItemConfiguration : IEntityTypeConfiguration<PayrollItem>
         b.Property(x => x.PaidLeaveDays).HasColumnType("decimal(6,2)");
         b.Property(x => x.UnpaidLeaveDays).HasColumnType("decimal(6,2)");
         b.Property(x => x.AbsenceDays).HasColumnType("decimal(6,2)");
+        b.Property(x => x.OriginalAbsenceDays).HasColumnType("decimal(6,2)");
+        b.Property(x => x.AnnualLeaveDays).HasColumnType("decimal(6,2)");
+        b.Property(x => x.AnnualLeaveBalanceApplied).HasColumnType("decimal(6,2)");
+        b.Property(x => x.ManualOvertimeHours).HasColumnType("decimal(18,2)");
+        b.Property(x => x.LastEditedBy).HasMaxLength(200);
         b.Property(x => x.LateDeduction).HasColumnType("decimal(18,2)");
         b.Property(x => x.AbsenceDeduction).HasColumnType("decimal(18,2)");
         b.Property(x => x.UnpaidLeaveDeduction).HasColumnType("decimal(18,2)");
@@ -113,6 +118,7 @@ public class PayrollItemConfiguration : IEntityTypeConfiguration<PayrollItem>
         b.Property(x => x.Bonuses).HasColumnType("decimal(18,2)");
         b.Property(x => x.Allowances).HasColumnType("decimal(18,2)");
         b.Property(x => x.AdditionalDaysCount).HasColumnType("decimal(6,2)");
+        b.Property(x => x.AdditionalDaysRate).HasColumnType("decimal(18,4)");
         b.Property(x => x.AdditionalDaysAmount).HasColumnType("decimal(18,2)");
         b.Property(x => x.GrossEarnings).HasColumnType("decimal(18,2)");
         b.Property(x => x.TotalDeductions).HasColumnType("decimal(18,2)");

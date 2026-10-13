@@ -585,6 +585,9 @@ namespace HrPayroll.Infrastructure.Persistence.Migrations
                     b.Property<decimal>("AnnualLeaveBalance")
                         .HasColumnType("decimal(6,2)");
 
+                    b.Property<decimal>("AnnualLeaveCarriedOver")
+                        .HasColumnType("decimal(6,2)");
+
                     b.Property<decimal>("AnnualLeaveEntitlement")
                         .HasColumnType("decimal(6,2)");
 
@@ -1146,8 +1149,17 @@ namespace HrPayroll.Infrastructure.Persistence.Migrations
                     b.Property<decimal>("AdditionalDaysCount")
                         .HasColumnType("decimal(6,2)");
 
+                    b.Property<decimal?>("AdditionalDaysRate")
+                        .HasColumnType("decimal(18,4)");
+
                     b.Property<decimal>("Allowances")
                         .HasColumnType("decimal(18,2)");
+
+                    b.Property<decimal>("AnnualLeaveBalanceApplied")
+                        .HasColumnType("decimal(6,2)");
+
+                    b.Property<decimal>("AnnualLeaveDays")
+                        .HasColumnType("decimal(6,2)");
 
                     b.Property<decimal>("ApprovedOvertimeHours")
                         .HasColumnType("decimal(18,2)");
@@ -1205,9 +1217,19 @@ namespace HrPayroll.Infrastructure.Persistence.Migrations
                     b.Property<decimal>("HourlyRate")
                         .HasColumnType("decimal(18,4)");
 
+                    b.Property<bool>("IsManuallyAdjusted")
+                        .HasColumnType("bit");
+
                     b.Property<string>("JobTitleName")
                         .HasMaxLength(150)
                         .HasColumnType("nvarchar(150)");
+
+                    b.Property<DateTime?>("LastEditedAt")
+                        .HasColumnType("datetime2");
+
+                    b.Property<string>("LastEditedBy")
+                        .HasMaxLength(200)
+                        .HasColumnType("nvarchar(200)");
 
                     b.Property<decimal>("LateDeduction")
                         .HasColumnType("decimal(18,2)");
@@ -1216,6 +1238,9 @@ namespace HrPayroll.Infrastructure.Persistence.Migrations
                         .HasColumnType("int");
 
                     b.Property<decimal>("LoansTotal")
+                        .HasColumnType("decimal(18,2)");
+
+                    b.Property<decimal?>("ManualOvertimeHours")
                         .HasColumnType("decimal(18,2)");
 
                     b.Property<decimal>("MinuteRate")
@@ -1227,6 +1252,9 @@ namespace HrPayroll.Infrastructure.Persistence.Migrations
                     b.Property<string>("Notes")
                         .HasMaxLength(1000)
                         .HasColumnType("nvarchar(1000)");
+
+                    b.Property<decimal>("OriginalAbsenceDays")
+                        .HasColumnType("decimal(6,2)");
 
                     b.Property<decimal>("OtherDeductions")
                         .HasColumnType("decimal(18,2)");

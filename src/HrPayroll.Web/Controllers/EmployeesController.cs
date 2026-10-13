@@ -126,7 +126,8 @@ public class EmployeesController : Controller
             DailyRate = vm.DailyRate,
             StandardWorkHours = vm.StandardWorkHours <= 0 ? 8m : vm.StandardWorkHours,
             AnnualLeaveEntitlement = vm.AnnualLeaveEntitlement,
-            AnnualLeaveBalance = vm.AnnualLeaveBalance > 0 ? vm.AnnualLeaveBalance : vm.AnnualLeaveEntitlement,
+            AnnualLeaveCarriedOver = vm.AnnualLeaveCarriedOver,
+            AnnualLeaveBalance = vm.AnnualLeaveBalance > 0 ? vm.AnnualLeaveBalance : vm.AnnualLeaveTotal,
             HireDate = vm.HireDate.Date,
             EmploymentStatus = vm.EmploymentStatus,
             IsActive = vm.EmploymentStatus == EmploymentStatus.Active,
@@ -200,6 +201,7 @@ public class EmployeesController : Controller
         emp.DailyRate = vm.DailyRate;
         emp.StandardWorkHours = vm.StandardWorkHours <= 0 ? 8m : vm.StandardWorkHours;
         emp.AnnualLeaveEntitlement = vm.AnnualLeaveEntitlement;
+        emp.AnnualLeaveCarriedOver = vm.AnnualLeaveCarriedOver;
         emp.AnnualLeaveBalance = vm.AnnualLeaveBalance;
         emp.HireDate = vm.HireDate.Date;
         emp.EmploymentStatus = vm.EmploymentStatus;

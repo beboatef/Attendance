@@ -74,11 +74,20 @@
             <div class="form-grid">
                 <div class="field">
                     <label asp-for="AnnualLeaveEntitlement">استحقاق الإجازة السنوية (يوم)</label>
-                    <input asp-for="AnnualLeaveEntitlement" type="number" step="0.5" min="0" />
+                    <input asp-for="AnnualLeaveEntitlement" type="number" step="0.5" min="0" data-leave-field="entitlement" />
+                </div>
+                <div class="field">
+                    <label asp-for="AnnualLeaveCarriedOver">الرصيد المرحَّل من السنة السابقة (يوم)</label>
+                    <input asp-for="AnnualLeaveCarriedOver" type="number" step="0.5" min="0" data-leave-field="carried" />
+                    <span class="hint">اتركه صفرًا إذا كانت الشركة لا تسمح بترحيل الرصيد.</span>
                 </div>
                 <div class="field">
                     <label asp-for="AnnualLeaveBalance">الرصيد المتبقي</label>
-                    <input asp-for="AnnualLeaveBalance" type="number" step="0.5" min="0" />
+                    <input asp-for="AnnualLeaveBalance" type="number" step="0.5" min="0" data-leave-field="balance" />
+                    <span class="hint">
+                        إجمالي الرصيد المتاح: <strong id="leaveTotal">@Model.AnnualLeaveTotal.ToString("0.##")</strong> يوم
+                        — المستهلك: <strong id="leaveUsed">@Model.AnnualLeaveUsed.ToString("0.##")</strong> يوم
+                    </span>
                 </div>
                 <div class="field">
                     <label asp-for="EmploymentStatus">الحالة الوظيفية</label>
@@ -129,4 +138,24 @@
 
 @section Scripts {
     <partial name="_ValidationScriptsPartial" />
+    <script>
+        (function () {
+            var ent = document.querySelector('[data-leave-field="entitlement"]');
+            var car = document.querySelector('[data-leave-field="carried"]');
+            var bal = document.querySelector('[data-leave-field="balance"]');
+            var totalEl = document.getElementById('leaveTotal');
+            var usedEl = document.getElementById('leaveUsed');
+            if (!ent || !car || !bal) return;
+            function num(el) { var v = parseFloat(el.value); return isNaN(v) ? 0 : v; }
+            function refresh() {
+                var total = num(ent) + num(car);
+                totalEl.textContent = total.toFixed(2).replace(/\.00$/, '');
+                usedEl.textContent = Math.max(0, total - num(bal)).toFixed(2).replace(/\.00$/, '');
+            }
+            [ent, car, bal].forEach(function (el) { el.addEventListener('input', refresh); });
+            // رصيد موظف جديد = المستحق + المرحَّل تلقائيًا حتى يعدّله المستخدم يدويًا
+            if (@(Model.Id > 0 ? "false" : "true") && bal.value === '0') { bal.value = num(ent) + num(car); }
+            refresh();
+        })();
+    </script>
 }

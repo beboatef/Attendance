@@ -50,6 +50,7 @@ builder.Services.AddAuthorization(options =>
     options.AddPolicy(AppPolicies.ManageEmployees, p => p.RequireRole(AppRoles.Admin, AppRoles.Hr));
     options.AddPolicy(AppPolicies.ManageAttendance, p => p.RequireRole(AppRoles.Admin, AppRoles.Hr));
     options.AddPolicy(AppPolicies.ManagePayroll, p => p.RequireRole(AppRoles.Admin, AppRoles.Accountant));
+    options.AddPolicy(AppPolicies.EditPayrollSheet, p => p.RequireRole(AppRoles.Admin, AppRoles.Accountant));
     options.AddPolicy(AppPolicies.ManageLoans, p => p.RequireRole(AppRoles.Admin, AppRoles.Accountant));
     options.AddPolicy(AppPolicies.ViewReports, p => p.RequireRole(AppRoles.All));
 });
@@ -67,6 +68,7 @@ builder.Services.AddScoped<AuditService>();
 builder.Services.AddScoped<ShiftResolver>();
 builder.Services.AddScoped<AttendanceProcessingService>();
 builder.Services.AddScoped<PayrollService>();
+builder.Services.AddScoped<PayrollSheetService>();
 builder.Services.AddScoped<ExcelExportService>();
 builder.Services.AddScoped<DashboardService>();
 
@@ -164,6 +166,7 @@ public static class AppPolicies
     public const string ManageEmployees = "ManageEmployees";
     public const string ManageAttendance = "ManageAttendance";
     public const string ManagePayroll = "ManagePayroll";
+    public const string EditPayrollSheet = "EditPayrollSheet";
     public const string ManageLoans = "ManageLoans";
     public const string ViewReports = "ViewReports";
 }
