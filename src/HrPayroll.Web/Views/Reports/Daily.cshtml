@@ -1,0 +1,146 @@
+@using HrPayroll.Domain.Enums
+@model HrPayroll.Web.ViewModels.DailyReportViewModel
+@{
+    ViewData["Title"] = "تقرير الحضور اليومي";
+    var f = Model.Filter;
+    var q = new Dictionary<string, string>
+    {
+        ["from"] = f.From.ToString("yyyy-MM-dd"),
+        ["to"] = f.To.ToString("yyyy-MM-dd"),
+        ["department"] = f.Department ?? string.Empty,
+        ["employeeId"] = f.EmployeeId?.ToString() ?? string.Empty,
+        ["shiftId"] = f.ShiftId?.ToString() ?? string.Empty,
+        ["status"] = f.Status.HasValue ? ((int)f.Status.Value).ToString() : string.Empty,
+        ["search"] = f.Search ?? string.Empty
+    };
+}
+<div class="card">
+    <div class="card-head">
+        <div>
+            <h2>تقرير الحضور اليومي</h2>
+            <div class="sub">@f.PeriodText — @Model.Rows.Count سجل</div>
+        </div>
+        <div class="btn-row no-print">
+            <a class="btn btn-soft btn-sm" asp-action="ExportDailyExcel" asp-all-route-data="q">Excel</a>
+            <a class="btn btn-soft btn-sm" asp-action="ExportDailyPdf" asp-all-route-data="q">PDF</a>
+            <button type="button" class="btn btn-ghost btn-sm" onclick="window.print()">طباعة</button>
+            <a class="btn btn-ghost btn-sm" asp-action="Index">رجوع</a>
+        </div>
+    </div>
+    <div class="card-body">
+        <form method="get" class="filters no-print">
+            <div class="field"><label>من</label><input type="date" name="from" value="@f.From.ToString("yyyy-MM-dd")" /></div>
+            <div class="field"><label>إلى</label><input type="date" name="to" value="@f.To.ToString("yyyy-MM-dd")" /></div>
+            <div class="field">
+                <label>القسم</label>
+                <select name="department">
+                    <option value="">كل الأقسام</option>
+                    @foreach (var d in Model.Departments)
+                    {
+                        <option value="@d.Name" selected="@(f.Department == d.Name)">@d.Name</option>
+                    }
+                </select>
+            </div>
+            <div class="field">
+                <label>الموظف</label>
+                <select name="employeeId">
+                    <option value="">الكل</option>
+                    @foreach (var e in Model.Employees)
+                    {
+                        <option value="@e.Id" selected="@(f.EmployeeId == e.Id)">@e.EmployeeCode — @e.FullName</option>
+                    }
+                </select>
+            </div>
+            <div class="field">
+                <label>الوردية</label>
+                <select name="shiftId">
+                    <option value="">كل الورديات</option>
+                    @foreach (var s in Model.Shifts)
+                    {
+                        <option value="@s.Id" selected="@(f.ShiftId == s.Id)">@s.ShiftName</option>
+                    }
+                </select>
+            </div>
+            <div class="field">
+                <label>الحالة</label>
+                <select name="status">
+                    <option value="">كل الحالات</option>
+                    @foreach (var st in Enum.GetValues<AttendanceStatus>())
+                    {
+                        <option value="@((int)st)" selected="@(f.Status == st)">@st</option>
+                    }
+                </select>
+            </div>
+            <div class="field actions">
+                <button type="submit" class="btn btn-primary">عرض</button>
+            </div>
+        </form>
+    </div>
+</div>
+
+<div class="card">
+    <div class="card-head"><h3>ملخص الأقسام</h3></div>
+    <div class="table-wrap">
+        <table class="data">
+            <thead><tr><th>القسم</th><th>العدد</th><th>حضور</th><th>غياب</th><th>تأخير</th><th>بصمات ناقصة</th><th>إجازات</th><th>راحة/عطلة</th><th>نسبة الحضور</th></tr></thead>
+            <tbody>
+            @foreach (var d in Model.DepartmentRows)
+            {
+                <tr>
+                    <td>@d.Department</td>
+                    <td class="num">@d.Total</td>
+                    <td class="num">@d.Present</td>
+                    <td class="num">@d.Absent</td>
+                    <td class="num">@d.Late</td>
+                    <td class="num">@d.Incomplete</td>
+                    <td class="num">@d.OnLeave</td>
+                    <td class="num">@d.RestOrHoliday</td>
+                    <td><div class="bar"><span style="width:@(d.PresentRate)%"></span></div><span class="hint">@d.PresentRate%</span></td>
+                </tr>
+            }
+            </tbody>
+        </table>
+    </div>
+</div>
+
+@foreach (var dept in Model.DepartmentRows)
+{
+    <div class="card">
+        <div class="card-head">
+            <h3>@dept.Department <span class="badge info">@dept.Rows.Count سجل</span></h3>
+        </div>
+        <div class="table-wrap">
+            <table class="data">
+                <thead>
+                <tr>
+                    <th>كود</th><th>الاسم</th><th>المسمى</th><th>التاريخ</th><th>الوردية</th><th>بداية</th><th>نهاية</th>
+                    <th>الدخول</th><th>الخروج</th><th>ساعات العمل</th><th>تأخير</th><th>انصراف مبكر</th>
+                    <th>إضافي خام</th><th>إضافي معتمد</th><th>الحالة</th>
+                </tr>
+                </thead>
+                <tbody>
+                @foreach (var r in dept.Rows)
+                {
+                    <tr>
+                        <td class="num">@r.EmployeeCode</td>
+                        <td>@r.EmployeeName</td>
+                        <td>@(r.JobTitle ?? "-")</td>
+                        <td class="num">@r.WorkDate.ToString("yyyy-MM-dd")</td>
+                        <td>@(r.ShiftName ?? "-")</td>
+                        <td class="num">@r.ShiftStart.ToString("HH:mm")</td>
+                        <td class="num">@r.ShiftEnd.ToString("HH:mm")</td>
+                        <td class="num">@(r.CheckIn?.ToString("HH:mm") ?? "-")</td>
+                        <td class="num">@(r.CheckOut?.ToString("HH:mm") ?? "-")</td>
+                        <td class="num">@r.WorkedHours</td>
+                        <td class="num">@r.LateMinutes</td>
+                        <td class="num">@r.EarlyLeaveMinutes</td>
+                        <td class="num">@r.RawOvertimeHours</td>
+                        <td class="num">@r.ApprovedOvertimeHours</td>
+                        <td><partial name="_StatusBadge" model="r.Status" /></td>
+                    </tr>
+                }
+                </tbody>
+            </table>
+        </div>
+    </div>
+}

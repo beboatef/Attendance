@@ -1,0 +1,102 @@
+@using HrPayroll.Domain.Entities
+@model HrPayroll.Web.ViewModels.ConvertAbsenceViewModel
+@{
+    ViewData["Title"] = "تحويل الغياب إلى إجازة";
+}
+<div class="card">
+    <div class="card-head">
+        <div>
+            <h2>تحويل أيام الغياب إلى إجازة معتمدة</h2>
+            <div class="sub">مثال: موظف لديه 4 أيام غياب، تُعتمد يومان إجازة سنوية ويبقى الباقي غيابًا بدون خصم إجازة.</div>
+        </div>
+        <a class="btn btn-ghost btn-sm" asp-action="Index">رجوع للإجازات</a>
+    </div>
+    <div class="card-body">
+        <form method="get" class="filters">
+            <div class="field">
+                <label>الموظف</label>
+                <select name="employeeId">
+                    <option value="">— اختر الموظف —</option>
+                    @foreach (var e in Model.Employees)
+                    {
+                        <option value="@e.Id" selected="@(Model.EmployeeId == e.Id)">@e.EmployeeCode — @e.FullName</option>
+                    }
+                </select>
+            </div>
+            <div class="field">
+                <label>من تاريخ</label>
+                <input type="date" name="from" value="@Model.From.ToString("yyyy-MM-dd")" />
+            </div>
+            <div class="field">
+                <label>إلى تاريخ</label>
+                <input type="date" name="to" value="@Model.To.ToString("yyyy-MM-dd")" />
+            </div>
+            <div class="field actions">
+                <button type="submit" class="btn btn-primary">عرض أيام الغياب</button>
+            </div>
+        </form>
+    </div>
+</div>
+
+<div class="card">
+    <div class="card-head">
+        <h3>أيام الغياب المسجَّلة (@Model.AbsenceDays.Count)</h3>
+    </div>
+    @if (Model.AbsenceDays.Count == 0)
+    {
+        ViewData["message"] = "لا توجد أيام غياب في هذه الفترة";
+        ViewData["hint"] = "اختر موظفًا وفترة تحتوي أيام غياب مسجَّلة بعد معالجة الحضور.";
+        ViewData["icon"] = "↩️";
+        <partial name="_Empty" />
+    }
+    else
+    {
+        <form method="post" asp-action="ConvertAbsence">
+            <input type="hidden" name="EmployeeId" value="@Model.EmployeeId" />
+            <input type="hidden" name="From" value="@Model.From.ToString("yyyy-MM-dd")" />
+            <input type="hidden" name="To" value="@Model.To.ToString("yyyy-MM-dd")" />
+            <div class="table-wrap">
+                <table class="data">
+                    <thead>
+                    <tr>
+                        <th><input type="checkbox" data-check-all=".absence-check" /></th>
+                        <th>الموظف</th><th>التاريخ</th><th>اليوم</th><th>الوردية</th><th>الحالة الحالية</th><th>ملاحظات</th>
+                    </tr>
+                    </thead>
+                    <tbody>
+                    @foreach (var d in Model.AbsenceDays)
+                    {
+                        <tr>
+                            <td><input type="checkbox" class="absence-check" name="SelectedDates" value="@d.WorkDate.ToString("yyyy-MM-dd")" /></td>
+                            <td>@(d.Employee?.FullName ?? "-")</td>
+                            <td class="num">@d.WorkDate.ToString("yyyy-MM-dd")</td>
+                            <td>@d.WorkDate.DayOfWeek</td>
+                            <td>@(d.Shift?.ShiftName ?? "-")</td>
+                            <td><partial name="_StatusBadge" model="d.Status" /></td>
+                            <td class="wrap">@(d.Notes ?? "-")</td>
+                        </tr>
+                    }
+                    </tbody>
+                </table>
+            </div>
+
+            <div class="form-grid" style="margin-top:16px">
+                <div class="field">
+                    <label>تحويل الأيام المحددة إلى</label>
+                    <select name="LeaveType" asp-items="Model.LeaveTypeList"></select>
+                </div>
+                <div class="field span-2">
+                    <label>السبب / ملاحظة الاعتماد</label>
+                    <input type="text" name="Reason" value="@Model.Reason" placeholder="مثال: اعتماد إجازة سنوية بأثر رجعي" />
+                </div>
+            </div>
+
+            <div class="btn-row" style="margin-top:16px">
+                <button type="submit" class="btn btn-accent btn-lg"
+                        data-confirm="تحويل الأيام المحددة إلى إجازة معتمدة؟ سيُغيَّر تصنيفها في الحضور وتُسجَّل في سجل المراجعة.">
+                    تحويل الأيام المحددة
+                </button>
+            </div>
+        </form>
+    }
+</div>

@@ -1,0 +1,67 @@
+@model HrPayroll.Web.ViewModels.LeaveFormViewModel
+@{
+    var isEdit = Model.Id > 0;
+    ViewData["Title"] = isEdit ? "تعديل إجازة" : "إضافة إجازة";
+}
+<div class="card">
+    <div class="card-head">
+        <h2>@ViewData["Title"]</h2>
+        <a class="btn btn-ghost btn-sm" asp-action="Index">رجوع</a>
+    </div>
+    <div class="card-body">
+        <form method="post" asp-action="@(isEdit ? "Edit" : "Create")" asp-route-id="@(isEdit ? Model.Id : (int?)null)">
+            <input type="hidden" asp-for="Id" />
+            <div asp-validation-summary="ModelOnly" class="alert alert-danger" style="display:@(ViewData.ModelState.ErrorCount > 0 ? "flex" : "none")"></div>
+            <div class="form-grid">
+                <div class="field span-2">
+                    <label asp-for="EmployeeId">الموظف</label>
+                    <select asp-for="EmployeeId" asp-items="Model.EmployeeList"><option value="">— اختر الموظف —</option></select>
+                    <span asp-validation-for="EmployeeId" class="field-error"></span>
+                </div>
+                <div class="field">
+                    <label asp-for="LeaveType">نوع الإجازة</label>
+                    <select asp-for="LeaveType" asp-items="Model.LeaveTypeList"></select>
+                </div>
+                <div class="field">
+                    <label asp-for="IsPaid">مدفوعة الأجر</label>
+                    <select asp-for="IsPaid">
+                        <option value="true">مدفوعة</option>
+                        <option value="false">بدون أجر</option>
+                    </select>
+                </div>
+                <div class="field">
+                    <label asp-for="StartDate">من تاريخ</label>
+                    <input asp-for="StartDate" type="date" />
+                    <span asp-validation-for="StartDate" class="field-error"></span>
+                </div>
+                <div class="field">
+                    <label asp-for="EndDate">إلى تاريخ</label>
+                    <input asp-for="EndDate" type="date" />
+                    <span asp-validation-for="EndDate" class="field-error"></span>
+                </div>
+                <div class="field span-2">
+                    <label asp-for="Reason">السبب</label>
+                    <textarea asp-for="Reason" rows="2"></textarea>
+                </div>
+                @if (!isEdit)
+                {
+                    <div class="field">
+                        <label asp-for="ApproveImmediately">اعتماد فوري</label>
+                        <select asp-for="ApproveImmediately">
+                            <option value="false">اتركه قيد المراجعة</option>
+                            <option value="true">اعتماد الآن</option>
+                        </select>
+                    </div>
+                }
+            </div>
+            <div class="alert alert-info" style="margin-top:14px">
+                <span>عدد أيام العمل يُحسب تلقائيًا باستثناء أيام الراحة الأسبوعية والعطلات الرسمية. يُمنع تسجيل إجازتين متداخلتين لنفس الموظف.</span>
+            </div>
+            <div class="btn-row">
+                <button type="submit" class="btn btn-primary btn-lg">حفظ</button>
+                <a class="btn btn-ghost btn-lg" asp-action="Index">إلغاء</a>
+            </div>
+        </form>
+    </div>
+</div>
+@section Scripts { <partial name="_ValidationScriptsPartial" /> }

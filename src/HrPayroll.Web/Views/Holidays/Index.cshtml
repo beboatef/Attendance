@@ -1,0 +1,93 @@
+@using HrPayroll.Domain.Entities
+@model List<PublicHoliday>
+@{
+    ViewData["Title"] = "العطلات وأيام الراحة";
+    var year = (int)(ViewBag.Year ?? DateTime.Today.Year);
+    var restDays = (ViewBag.RestDays as string ?? "5").Split(',', StringSplitOptions.RemoveEmptyEntries);
+    var dayNames = new[] { "الأحد", "الاثنين", "الثلاثاء", "الأربعاء", "الخميس", "الجمعة", "السبت" };
+}
+<div class="card">
+    <div class="card-head">
+        <div>
+            <h2>أيام الراحة الأسبوعية</h2>
+            <div class="sub">الجمعة هي يوم الراحة الافتراضي للشركة، ويمكن إضافة أي يوم آخر.</div>
+        </div>
+    </div>
+    <div class="card-body">
+        <form method="post" asp-action="SaveRestDays">
+            <div class="form-grid">
+                <div class="field span-all">
+                    <label>أيام الراحة الأسبوعية</label>
+                    <div class="btn-row">
+                        @for (var d = 0; d <= 6; d++)
+                        {
+                            var isChecked = restDays.Contains(d.ToString());
+                            <label class="badge @(isChecked ? "info" : "muted")" style="cursor:pointer;padding:6px 12px">
+                                <input type="checkbox" name="restDays" value="@d" checked="@isChecked" style="margin-inline-end:5px" />
+                                @dayNames[d]
+                            </label>
+                        }
+                    </div>
+                    <span class="hint">أيام الراحة مدفوعة ضمن الراتب الشهري ولا تُحتسب غيابًا ولا تُخصم.</span>
+                </div>
+            </div>
+            <div class="btn-row" style="margin-top:12px">
+                <button type="submit" class="btn btn-primary">حفظ أيام الراحة</button>
+            </div>
+        </form>
+    </div>
+</div>
+
+<div class="card">
+    <div class="card-head">
+        <div>
+            <h2>العطلات الرسمية @year</h2>
+            <div class="sub">العطلة المدفوعة مشمولة في الراتب الشهري ولا تُضاف مرة أخرى.</div>
+        </div>
+        <div class="btn-row">
+            <form method="get" class="btn-row">
+                <input type="number" name="year" value="@year" style="width:100px" />
+                <button type="submit" class="btn btn-ghost btn-sm">عرض</button>
+            </form>
+            <a class="btn btn-primary btn-sm" asp-action="Create">+ إضافة عطلة</a>
+        </div>
+    </div>
+    @if (Model.Count == 0)
+    {
+        ViewData["message"] = $"لا توجد عطلات مسجلة لعام {year}";
+        ViewData["actionUrl"] = Url.Action("Create");
+        ViewData["actionText"] = "إضافة عطلة رسمية";
+        ViewData["icon"] = "📅";
+        <partial name="_Empty" />
+    }
+    else
+    {
+        <div class="table-wrap">
+            <table class="data">
+                <thead><tr><th>الاسم</th><th>التاريخ</th><th>اليوم</th><th>مدفوعة</th><th>يُصرف مقابل العمل فيها</th><th>الحالة</th><th></th></tr></thead>
+                <tbody>
+                @foreach (var h in Model)
+                {
+                    <tr>
+                        <td>@h.Name</td>
+                        <td class="num">@h.HolidayDate.ToString("yyyy-MM-dd")</td>
+                        <td>@dayNames[(int)h.HolidayDate.DayOfWeek]</td>
+                        <td>@(h.IsPaid ? "نعم" : "لا")</td>
+                        <td>@(h.AllowWorkWithExtraPay ? "نعم" : "لا")</td>
+                        <td>@if (h.IsActive) { <span class="badge ok">نشطة</span> } else { <span class="badge muted">معطّلة</span> }</td>
+                        <td class="btn-row">
+                            <a class="btn btn-soft btn-sm" asp-action="Edit" asp-route-id="@h.Id">تعديل</a>
+                            @if (h.IsActive)
+                            {
+                                <form method="post" asp-action="Delete" asp-route-id="@h.Id" class="d-inline" data-confirm="تعطيل هذه العطلة؟ لن تُحتسب في معالجة الحضور.">
+                                    <button type="submit" class="btn btn-ghost btn-sm">تعطيل</button>
+                                </form>
+                            }
+                        </td>
+                    </tr>
+                }
+                </tbody>
+            </table>
+        </div>
+    }
+</div>

@@ -1,35 +1,87 @@
-@model List<DailyAttendance>
-@{ ViewData["Title"] = "الاستثناءات والمراجعة"; }
-<div class="alert alert-info py-2">
-    تعرض هذه الصفحة الأيام التي تحتوي بصمة دخول/خروج مفقودة أو تصنيفًا بحاجة لمراجعة بشرية.
-    لا يقوم النظام بافتراض وقت دخول أو خروج عند عدم وجود بصمة.
-</div>
+@using HrPayroll.Domain.Enums
+@model HrPayroll.Web.ViewModels.ExceptionsViewModel
+@{
+    ViewData["Title"] = "الاستثناءات والمراجعة";
+    var f = Model.Filter;
+}
 <div class="card">
-    <div class="table-responsive">
-        <table class="table table-striped mb-0">
-            <thead>
-            <tr><th>الكود</th><th>الاسم</th><th>التاريخ</th><th>الوردية</th><th>دخول</th><th>خروج</th><th>الحالة</th><th>ملاحظة</th><th></th></tr>
-            </thead>
-            <tbody>
-            @foreach (var d in Model)
-            {
-                <tr>
-                    <td>@d.Employee?.EmployeeCode</td>
-                    <td>@d.Employee?.FullName</td>
-                    <td>@d.WorkDate.ToString("yyyy-MM-dd")</td>
-                    <td>@d.Shift?.ShiftName</td>
-                    <td>@(d.CheckInTime?.ToString("HH:mm"))</td>
-                    <td>@(d.CheckOutTime?.ToString("HH:mm"))</td>
-                    <td>@d.Status</td>
-                    <td>@d.Notes</td>
-                    <td><a class="btn btn-sm btn-outline-primary" asp-action="Review" asp-route-id="@d.Id">مراجعة</a></td>
-                </tr>
-            }
-            @if (!Model.Any())
-            {
-                <tr><td colspan="9" class="text-center text-muted py-4">لا توجد استثناءات</td></tr>
-            }
-            </tbody>
-        </table>
+    <div class="card-head">
+        <div>
+            <h2>الحالات التي تحتاج مراجعة بشرية</h2>
+            <div class="sub">بصمات ناقصة، ورديات غامضة، وحالات غير مصنفة، وأيام غياب مسجَّلة. @f.PeriodText</div>
+        </div>
     </div>
+    <div class="card-body">
+        <form method="get" class="filters">
+            <div class="field"><label>من تاريخ</label><input type="date" name="from" value="@f.From.ToString("yyyy-MM-dd")" /></div>
+            <div class="field"><label>إلى تاريخ</label><input type="date" name="to" value="@f.To.ToString("yyyy-MM-dd")" /></div>
+            <div class="field">
+                <label>القسم</label>
+                <select name="department">
+                    <option value="">كل الأقسام</option>
+                    @foreach (var d in Model.Departments)
+                    {
+                        <option value="@d.Name" selected="@(f.Department == d.Name)">@d.Name</option>
+                    }
+                </select>
+            </div>
+            <div class="field actions">
+                <button type="submit" class="btn btn-primary">عرض</button>
+                <a class="btn btn-ghost" asp-action="Exceptions">آخر 7 أيام</a>
+            </div>
+        </form>
+    </div>
+</div>
+
+<div class="card">
+    <div class="card-head"><h3>الحالات (@Model.Rows.Count)</h3></div>
+    @if (Model.Rows.Count == 0)
+    {
+        ViewData["message"] = "لا توجد استثناءات في هذه الفترة";
+        ViewData["hint"] = "كل السجلات مصنفة بثقة وبها بصمات دخول وخروج كاملة.";
+        ViewData["icon"] = "✅";
+        <partial name="_Empty" />
+    }
+    else
+    {
+        <div class="table-wrap">
+            <table class="data">
+                <thead>
+                <tr>
+                    <th>كود</th><th>الاسم</th><th>القسم</th><th>التاريخ</th><th>الوردية</th>
+                    <th>الدخول</th><th>الخروج</th><th>الحالة</th><th>سبب الحاجة للمراجعة</th><th>ملاحظات النظام</th><th></th>
+                </tr>
+                </thead>
+                <tbody>
+                @foreach (var r in Model.Rows)
+                {
+                    <tr>
+                        <td class="num">@r.EmployeeCode</td>
+                        <td>@r.EmployeeName</td>
+                        <td>@(r.Department ?? "-")</td>
+                        <td class="num">@r.WorkDate.ToString("yyyy-MM-dd")</td>
+                        <td>
+                            @(r.ShiftName ?? "-")
+                            @if (r.DetectionSource == ShiftDetectionSource.Ambiguous)
+                            {
+                                <span class="badge bad">وردية غامضة</span>
+                            }
+                        </td>
+                        <td class="num">@(r.CheckIn?.ToString("HH:mm") ?? "—")</td>
+                        <td class="num">@(r.CheckOut?.ToString("HH:mm") ?? "—")</td>
+                        <td><partial name="_StatusBadge" model="r.Status" /></td>
+                        <td class="wrap">
+                            @if (r.HasIncompletePunches) { <span class="badge bad">بصمة ناقصة</span> }
+                            @if (r.PunchReviewStatus == ClassificationStatus.NeedsReview) { <span class="badge warn">تصنيف يحتاج مراجعة</span> }
+                            @if (r.IsWeeklyRestDay) { <span class="badge muted">يوم راحة</span> }
+                            @if (r.IsHoliday) { <span class="badge muted">عطلة: @r.HolidayName</span> }
+                        </td>
+                        <td class="wrap">@(r.Notes ?? "-")</td>
+                        <td><a class="btn btn-soft btn-sm" asp-action="Correct" asp-route-id="@r.DailyAttendanceId">تصحيح</a></td>
+                    </tr>
+                }
+                </tbody>
+            </table>
+        </div>
+    }
 </div>

@@ -1,0 +1,76 @@
+@using HrPayroll.Domain.Entities
+@model List<JobTitle>
+@{
+    ViewData["Title"] = "المسميات الوظيفية";
+    var counts = ViewBag.EmployeeCounts as Dictionary<int, int> ?? new Dictionary<int, int>();
+    var departments = ViewBag.Departments as List<Department> ?? new List<Department>();
+}
+<div class="card">
+    <div class="card-head">
+        <h2>المسميات الوظيفية</h2>
+        <a class="btn btn-primary btn-sm" asp-action="Create">+ إضافة مسمى</a>
+    </div>
+    <div class="card-body">
+        <form method="get" class="filters">
+            <div class="field">
+                <label>بحث</label>
+                <input type="text" name="search" value="@ViewBag.Search" />
+            </div>
+            <div class="field">
+                <label>القسم</label>
+                <select name="departmentId">
+                    <option value="">كل الأقسام</option>
+                    @foreach (var d in departments)
+                    {
+                        <option value="@d.Id" selected="@((int?)ViewBag.DepartmentId == d.Id)">@d.Name</option>
+                    }
+                </select>
+            </div>
+            <div class="field actions">
+                <button type="submit" class="btn btn-primary">تصفية</button>
+                <a class="btn btn-ghost" asp-action="Index">مسح</a>
+            </div>
+        </form>
+    </div>
+</div>
+
+<div class="card">
+    <div class="card-head">
+        <h3>القائمة (@Model.Count)</h3>
+        <input type="text" data-table-filter="#jtTable" placeholder="بحث فوري..." style="max-width:260px" />
+    </div>
+    @if (Model.Count == 0)
+    {
+        ViewData["message"] = "لا توجد مسميات وظيفية";
+        ViewData["actionUrl"] = Url.Action("Create");
+        ViewData["actionText"] = "إضافة مسمى وظيفي";
+        ViewData["icon"] = "🏷️";
+        <partial name="_Empty" />
+    }
+    else
+    {
+        <div class="table-wrap">
+            <table class="data" id="jtTable">
+                <thead><tr><th>المسمى</th><th>الكود</th><th>القسم</th><th>عدد الموظفين</th><th>الحالة</th><th></th></tr></thead>
+                <tbody>
+                @foreach (var j in Model)
+                {
+                    <tr>
+                        <td>@j.Name</td>
+                        <td class="num">@(j.Code ?? "-")</td>
+                        <td>@(j.Department?.Name ?? "-")</td>
+                        <td class="num">@(counts.TryGetValue(j.Id, out var c) ? c : 0)</td>
+                        <td>@if (j.IsActive) { <span class="badge ok">نشط</span> } else { <span class="badge muted">معطّل</span> }</td>
+                        <td class="btn-row">
+                            <a class="btn btn-soft btn-sm" asp-action="Edit" asp-route-id="@j.Id">تعديل</a>
+                            <form method="post" asp-action="ToggleActive" asp-route-id="@j.Id" class="d-inline" data-confirm="تغيير حالة المسمى الوظيفي؟">
+                                <button type="submit" class="btn btn-ghost btn-sm">@(j.IsActive ? "تعطيل" : "تفعيل")</button>
+                            </form>
+                        </td>
+                    </tr>
+                }
+                </tbody>
+            </table>
+        </div>
+    }
+</div>

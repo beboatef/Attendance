@@ -1,63 +1,101 @@
-@model ImportPreviewViewModel
-@{ ViewData["Title"] = "معاينة الاستيراد"; }
-<div class="card mb-3">
-    <div class="card-header fw-bold">معاينة الملف: @Model.FileName</div>
-    <div class="card-body">
-        <div class="row mb-3">
-            <div class="col-md-3"><strong>نوع الملف المكتشف:</strong> @Model.FormatName</div>
-            <div class="col-md-3"><strong>إجمالي الصفوف:</strong> @Model.Analysis.Total</div>
-            <div class="col-md-2 text-success"><strong>ناجح:</strong> @Model.Analysis.SuccessCount</div>
-            <div class="col-md-2 text-warning"><strong>مكرر:</strong> @Model.Analysis.DuplicateCount</div>
-            <div class="col-md-2 text-danger"><strong>غير صالح:</strong> @Model.Analysis.InvalidCount</div>
+@using HrPayroll.Domain.Enums
+@using HrPayroll.Infrastructure.Import
+@model HrPayroll.Web.ViewModels.ImportPreviewViewModel
+@{
+    ViewData["Title"] = "معاينة استيراد البصمات";
+    var a = Model.Analysis;
+}
+<div class="card">
+    <div class="card-head">
+        <div>
+            <h2>معاينة الملف: @Model.FileName</h2>
+            <div class="sub">الصيغة المكتشفة: @Model.FormatName @(Model.UsedFallback ? "— تم استخدام الربط الاحتياطي للأعمدة" : "")</div>
         </div>
-        @if (Model.UsedFallback)
-        {
-            <div class="alert alert-warning py-2">لم يتم التعرف على أسماء الأعمدة بشكل مؤكد، تم استخدام الربط الاحتياطي بالترتيب.</div>
-        }
-        @if (Model.Analysis.UnknownEmployeeCount > 0)
-        {
-            <div class="alert alert-danger py-2">
-                يوجد @Model.Analysis.UnknownEmployeeCount سجل بأكواد موظفين غير مسجلة، لن يتم استيرادها.
-            </div>
-        }
-        <div class="mb-2"><strong>الأعمدة المكتشفة:</strong> @string.Join(" | ", Model.Headers)</div>
+        <a class="btn btn-ghost btn-sm" asp-action="Index">رفع ملف آخر</a>
+    </div>
+    <div class="card-body">
+        <div class="stat-grid">
+            <div class="stat"><div class="label">إجمالي الصفوف</div><div class="value">@a.Total</div></div>
+            <div class="stat ok"><div class="label">صفوف صالحة</div><div class="value">@a.SuccessCount</div></div>
+            <div class="stat warn"><div class="label">مكررة داخل الملف</div><div class="value">@(a.DuplicateCount - a.AlreadyImportedCount)</div></div>
+            <div class="stat warn"><div class="label">مستوردة سابقًا</div><div class="value">@a.AlreadyImportedCount</div></div>
+            <div class="stat bad"><div class="label">تاريخ/وقت غير صالح</div><div class="value">@a.InvalidCount</div></div>
+            <div class="stat bad"><div class="label">موظف غير مسجل</div><div class="value">@a.UnknownEmployeeCount</div></div>
+        </div>
 
-        <div class="table-responsive">
-            <table class="table table-sm table-bordered">
-                <thead>
-                <tr>
-                    <th>رقم الصف</th><th>الجهاز</th><th>الكود</th><th>الاسم</th>
-                    <th>النوع</th><th>الوقت الأصلي</th><th>الوقت المحوّل</th><th>الحالة</th><th>ملاحظة</th>
-                </tr>
-                </thead>
+        <div class="section-title">ربط الأعمدة المكتشفة</div>
+        <div class="table-wrap">
+            <table class="data">
+                <thead><tr><th>الحقل</th><th>العمود</th></tr></thead>
                 <tbody>
-                @foreach (var r in Model.Analysis.Preview)
+                @if (a.Mapping is not null)
                 {
-                    var cls = r.Status == HrPayroll.Domain.Enums.ImportRowStatus.Success ? "table-success"
-                        : r.Status == HrPayroll.Domain.Enums.ImportRowStatus.Duplicate ? "table-warning" : "table-danger";
-                    <tr class="@cls">
-                        <td>@r.RowNumber</td>
-                        <td>@r.DeviceId</td>
-                        <td>@r.DeviceEmployeeCode</td>
-                        <td>@r.Name</td>
-                        <td>@r.AttType</td>
-                        <td>@r.RawPunchTime</td>
-                        <td>@(r.PunchTime?.ToString("yyyy-MM-dd HH:mm:ss"))</td>
-                        <td>@r.Status</td>
-                        <td>@r.Message</td>
-                    </tr>
+                    @if (a.Mapping.No.HasValue) { <tr><td>رقم الصف</td><td>@Header(a.Mapping.No)</td></tr> }
+                    @if (a.Mapping.DeviceId.HasValue) { <tr><td>رقم الجهاز</td><td>@Header(a.Mapping.DeviceId)</td></tr> }
+                    @if (a.Mapping.EmployeeCode.HasValue) { <tr><td>كود الموظف/البصمة</td><td>@Header(a.Mapping.EmployeeCode)</td></tr> }
+                    @if (a.Mapping.Name.HasValue) { <tr><td>الاسم</td><td>@Header(a.Mapping.Name)</td></tr> }
+                    @if (a.Mapping.AttType.HasValue) { <tr><td>نوع الحركة</td><td>@Header(a.Mapping.AttType)</td></tr> }
+                    @if (a.Mapping.AttTime.HasValue) { <tr><td>وقت البصمة</td><td>@Header(a.Mapping.AttTime)</td></tr> }
                 }
                 </tbody>
             </table>
-            <p class="text-muted small">يتم عرض أول 20 سجل فقط للمعاينة.</p>
         </div>
-    </div>
-    <div class="card-footer d-flex gap-2">
-        <form asp-action="Confirm" method="post">
+
+        <div class="alert alert-info" style="margin-top:14px">
+            <span>
+                الموظفون غير المسجلين لن يمنعوا الاستيراد — يمكنك منحهم أكواد بصمة من شاشة الموظفين ثم إعادة رفع الملف؛
+                البصمات المطابقة ستُستورد والبقية سيُبلَّغ بها. لن يُستورد أي بصمة مرتين.
+            </span>
+        </div>
+
+        <form method="post" asp-action="Confirm">
             <input type="hidden" name="token" value="@Model.Token" />
             <input type="hidden" name="fileName" value="@Model.FileName" />
-            <button class="btn btn-success" type="submit">تأكيد الاستيراد (@Model.Analysis.SuccessCount سجل)</button>
+            <div class="btn-row">
+                <button type="submit" class="btn btn-accent btn-lg" @(a.SuccessCount == 0 ? "disabled" : "")>
+                    تأكيد الاستيراد (@a.SuccessCount بصمة)
+                </button>
+                <a class="btn btn-ghost btn-lg" asp-action="Index">إلغاء</a>
+            </div>
         </form>
-        <a class="btn btn-secondary" asp-action="Index">إلغاء</a>
     </div>
 </div>
+
+<div class="card">
+    <div class="card-head"><h3>أول 20 صف من المعاينة</h3></div>
+    <div class="table-wrap">
+        <table class="data">
+            <thead><tr><th>صف</th><th>النتيجة</th><th>كود الجهاز</th><th>الاسم</th><th>النوع</th><th>الوقت الخام</th><th>الوقت المحوّل</th><th>ملاحظة</th></tr></thead>
+            <tbody>
+            @if (a.Preview.Count == 0)
+            {
+                <tr><td colspan="8" class="hint" style="text-align:center">لا توجد صفوف</td></tr>
+            }
+            @foreach (var r in a.Preview)
+            {
+                var cls = r.Status switch
+                {
+                    ImportRowStatus.Success => "ok",
+                    ImportRowStatus.Duplicate => "warn",
+                    _ => "bad"
+                };
+                <tr>
+                    <td class="num">@r.RowNumber</td>
+                    <td><span class="badge @cls">@r.Status</span></td>
+                    <td class="num">@(r.DeviceEmployeeCode ?? "-")</td>
+                    <td>@(r.Name ?? "-")</td>
+                    <td>@(r.AttType ?? "-")</td>
+                    <td class="num">@(r.RawPunchTime ?? "-")</td>
+                    <td class="num">@(r.PunchTime?.ToString("yyyy-MM-dd HH:mm:ss") ?? "-")</td>
+                    <td class="wrap">@(r.Message ?? "-")</td>
+                </tr>
+            }
+            </tbody>
+        </table>
+    </div>
+</div>
+
+@functions {
+    private string Header(int? index)
+        => index.HasValue && index.Value < Model.Headers.Count ? Model.Headers[index.Value] : $"العمود #{index + 1}";
+}

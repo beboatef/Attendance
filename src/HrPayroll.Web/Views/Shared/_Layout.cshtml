@@ -7,6 +7,15 @@
     var isAdmin = User.IsInRole(AppRoles.Admin);
     var isHr = isAdmin || User.IsInRole(AppRoles.Hr);
     var isAcct = isAdmin || User.IsInRole(AppRoles.Accountant);
+    var controller = (string?)ViewContext.RouteData.Values["controller"] ?? "";
+    var action = (string?)ViewContext.RouteData.Values["action"] ?? "";
+
+    string Nav(string c, string a = "Index")
+    {
+        var active = string.Equals(controller, c, StringComparison.OrdinalIgnoreCase)
+                     && (a == "Index" ? action == "Index" || action == "" : string.Equals(action, a, StringComparison.OrdinalIgnoreCase));
+        return active ? "active" : "";
+    }
 }
 <!DOCTYPE html>
 <html lang="ar" dir="rtl">
@@ -22,32 +31,46 @@
     @if (isAuth)
     {
         <aside class="sidebar">
-            <div class="brand">HR &amp; Payroll</div>
+            <div class="brand"><span class="logo">👥</span> HR &amp; Payroll</div>
             <nav>
-                <a asp-controller="Dashboard" asp-action="Index">لوحة التحكم</a>
+                <a class="@Nav("Dashboard")" asp-controller="Dashboard" asp-action="Index"><span class="ico">📊</span> لوحة التحكم</a>
+
+                <div class="nav-group">شؤون الموظفين</div>
+                <a class="@Nav("Employees", "Index")" asp-controller="Employees" asp-action="Index"><span class="ico">👤</span> الموظفون</a>
                 @if (isHr)
                 {
-                    <div class="nav-group">شؤون الموظفين</div>
-                    <a asp-controller="Employees" asp-action="Index">الموظفون</a>
-                    <a asp-controller="Shifts" asp-action="Index">الورديات</a>
-                    <a asp-controller="Import" asp-action="Index">استيراد البصمة</a>
-                    <a asp-controller="Attendance" asp-action="Index">الحضور اليومي</a>
-                    <a asp-controller="Attendance" asp-action="Exceptions">الاستثناءات والمراجعة</a>
+                    <a class="@Nav("Employees", "Import")" asp-controller="Employees" asp-action="Import"><span class="ico">📥</span> استيراد الموظفين</a>
+                    <a class="@Nav("Departments")" asp-controller="Departments" asp-action="Index"><span class="ico">🏢</span> الأقسام</a>
+                    <a class="@Nav("JobTitles")" asp-controller="JobTitles" asp-action="Index"><span class="ico">🏷️</span> المسميات الوظيفية</a>
                 }
+
+                <div class="nav-group">الحضور</div>
+                @if (isHr)
+                {
+                    <a class="@Nav("Import")" asp-controller="Import" asp-action="Index"><span class="ico">📄</span> استيراد البصمات</a>
+                    <a class="@Nav("Attendance")" asp-controller="Attendance" asp-action="Index"><span class="ico">🕒</span> الحضور اليومي</a>
+                    <a class="@Nav("Attendance", "Exceptions")" asp-controller="Attendance" asp-action="Exceptions"><span class="ico">⚠️</span> الاستثناءات والمراجعة</a>
+                    <a class="@Nav("Shifts")" asp-controller="Shifts" asp-action="Index"><span class="ico">🔁</span> الورديات</a>
+                    <a class="@Nav("Leaves")" asp-controller="Leaves" asp-action="Index"><span class="ico">🌴</span> الإجازات</a>
+                    <a class="@Nav("Leaves", "ConvertAbsence")" asp-controller="Leaves" asp-action="ConvertAbsence"><span class="ico">↩️</span> تحويل الغياب لإجازة</a>
+                    <a class="@Nav("Holidays")" asp-controller="Holidays" asp-action="Index"><span class="ico">📅</span> العطلات والراحة</a>
+                }
+
+                <div class="nav-group">الرواتب</div>
                 @if (isAcct)
                 {
-                    <div class="nav-group">الرواتب</div>
-                    <a asp-controller="Loans" asp-action="Index">السلف</a>
-                    <a asp-controller="Deductions" asp-action="Index">الخصومات والجزاءات</a>
-                    <a asp-controller="Overtime" asp-action="Index">اعتماد الإضافي</a>
-                    <a asp-controller="Payroll" asp-action="Index">كشوف الرواتب</a>
+                    <a class="@Nav("Overtime")" asp-controller="Overtime" asp-action="Index"><span class="ico">⏱️</span> اعتماد الإضافي</a>
+                    <a class="@Nav("Loans")" asp-controller="Loans" asp-action="Index"><span class="ico">💳</span> السلف</a>
+                    <a class="@Nav("Deductions")" asp-controller="Deductions" asp-action="Index"><span class="ico">➖</span> الخصومات والجزاءات</a>
+                    <a class="@Nav("Payroll", "Index")" asp-controller="Payroll" asp-action="Index"><span class="ico">💰</span> كشوف الرواتب</a>
                 }
+
                 <div class="nav-group">التقارير والنظام</div>
-                <a asp-controller="Reports" asp-action="Index">التقارير وتصدير Excel</a>
+                <a class="@Nav("Reports")" asp-controller="Reports" asp-action="Index"><span class="ico">📈</span> التقارير والتصدير</a>
                 @if (isAdmin)
                 {
-                    <a asp-controller="Settings" asp-action="Index">الإعدادات</a>
-                    <a asp-controller="Users" asp-action="Index">المستخدمون والصلاحيات</a>
+                    <a class="@Nav("Settings")" asp-controller="Settings" asp-action="Index"><span class="ico">⚙️</span> الإعدادات</a>
+                    <a class="@Nav("Users")" asp-controller="Users" asp-action="Index"><span class="ico">🔐</span> المستخدمون والصلاحيات</a>
                 }
             </nav>
         </aside>
@@ -58,9 +81,9 @@
             <div class="topbar-actions">
                 @if (isAuth)
                 {
-                    <span class="user-name">@User.Identity?.Name</span>
+                    <span class="user-chip"><span class="dot"></span> @User.Identity?.Name</span>
                     <form asp-controller="Account" asp-action="Logout" method="post" class="d-inline">
-                        <button type="submit" class="btn btn-sm btn-outline-secondary">خروج</button>
+                        <button type="submit" class="btn btn-ghost btn-sm">خروج</button>
                     </form>
                 }
             </div>
@@ -68,23 +91,23 @@
         <main class="content">
             @if (TempData["Success"] != null)
             {
-                <div class="alert alert-success alert-dismissible fade show" role="alert">
-                    @TempData["Success"]
-                    <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+                <div class="alert alert-success" data-auto-dismiss="7000">
+                    <span>@TempData["Success"]</span>
+                    <button type="button" class="close" aria-label="إغلاق">×</button>
                 </div>
             }
             @if (TempData["Error"] != null)
             {
-                <div class="alert alert-danger alert-dismissible fade show" role="alert">
-                    @TempData["Error"]
-                    <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+                <div class="alert alert-danger">
+                    <span>@TempData["Error"]</span>
+                    <button type="button" class="close" aria-label="إغلاق">×</button>
                 </div>
             }
             @if (TempData["Warning"] != null)
             {
-                <div class="alert alert-warning alert-dismissible fade show" role="alert">
-                    @TempData["Warning"]
-                    <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+                <div class="alert alert-warning">
+                    <span>@TempData["Warning"]</span>
+                    <button type="button" class="close" aria-label="إغلاق">×</button>
                 </div>
             }
             @RenderBody()
@@ -93,6 +116,7 @@
 </div>
 <script src="~/lib/jquery/dist/jquery.min.js"></script>
 <script src="~/lib/bootstrap/dist/js/bootstrap.bundle.min.js"></script>
+<script src="~/js/site.js" asp-append-version="true"></script>
 @await RenderSectionAsync("Scripts", required: false)
 </body>
 </html>

@@ -1,47 +1,167 @@
-@model List<OvertimeApproval>
+@using HrPayroll.Domain.Enums
+@model HrPayroll.Web.ViewModels.OvertimeIndexViewModel
 @{
     ViewData["Title"] = "اعتماد الإضافي";
-    var first = (DateTime)ViewBag.First; var last = (DateTime)ViewBag.Last;
+    var f = Model.Filter;
+    var q = new Dictionary<string, string>
+    {
+        ["from"] = f.From.ToString("yyyy-MM-dd"),
+        ["to"] = f.To.ToString("yyyy-MM-dd"),
+        ["department"] = f.Department ?? string.Empty,
+        ["employeeId"] = f.EmployeeId?.ToString() ?? string.Empty,
+        ["shiftId"] = f.ShiftId?.ToString() ?? string.Empty
+    };
 }
-<div class="card mb-3">
+<div class="card">
+    <div class="card-head">
+        <div>
+            <h2>اعتماد الإضافي</h2>
+            <div class="sub">الإضافي يُدفع بسعر الساعة العادي (بدون أي مضاعفة) ولا يدخل الراتب إلا بعد الاعتماد. @f.PeriodText</div>
+        </div>
+        <div class="btn-row">
+            <a class="btn btn-soft btn-sm" asp-action="Export" asp-all-route-data="q">تصدير Excel</a>
+        </div>
+    </div>
     <div class="card-body">
-        <form asp-action="Generate" method="post" class="row g-2 align-items-end">
-            <div class="col-md-3"><label class="form-label">من تاريخ</label><input type="date" name="from" value="@first.ToString("yyyy-MM-dd")" class="form-control" /></div>
-            <div class="col-md-3"><label class="form-label">إلى تاريخ</label><input type="date" name="to" value="@last.ToString("yyyy-MM-dd")" class="form-control" /></div>
-            <div class="col-md-3"><button class="btn btn-success">توليد اعتمادات من الحضور المحسوب</button></div>
-            <div class="col-md-3 text-muted small">يتم الاحتفاظ بالإضافي المحسوب ويبقى الاعتماد اليدوي مطلوبًا قبل إضافته للراتب.</div>
+        <form method="get" class="filters">
+            <div class="field"><label>من تاريخ</label><input type="date" name="from" value="@f.From.ToString("yyyy-MM-dd")" /></div>
+            <div class="field"><label>إلى تاريخ</label><input type="date" name="to" value="@f.To.ToString("yyyy-MM-dd")" /></div>
+            <div class="field">
+                <label>القسم</label>
+                <select name="department">
+                    <option value="">كل الأقسام</option>
+                    @foreach (var d in Model.Departments)
+                    {
+                        <option value="@d.Name" selected="@(f.Department == d.Name)">@d.Name</option>
+                    }
+                </select>
+            </div>
+            <div class="field">
+                <label>الموظف</label>
+                <select name="employeeId">
+                    <option value="">الكل</option>
+                    @foreach (var e in Model.Employees)
+                    {
+                        <option value="@e.Id" selected="@(f.EmployeeId == e.Id)">@e.EmployeeCode — @e.FullName</option>
+                    }
+                </select>
+            </div>
+            <div class="field">
+                <label>الوردية</label>
+                <select name="shiftId">
+                    <option value="">كل الورديات</option>
+                    @foreach (var s in Model.Shifts)
+                    {
+                        <option value="@s.Id" selected="@(f.ShiftId == s.Id)">@s.ShiftName</option>
+                    }
+                </select>
+            </div>
+            <div class="field">
+                <label>العرض</label>
+                <select name="onlyWithOvertime">
+                    <option value="true">الإضافي الخام فقط</option>
+                    <option value="false">كل الأيام</option>
+                </select>
+            </div>
+            <div class="field actions">
+                <button type="submit" class="btn btn-primary">عرض</button>
+                <a class="btn btn-ghost" asp-action="Index">مسح</a>
+            </div>
         </form>
     </div>
 </div>
+
+<div class="stat-grid">
+    <div class="stat"><div class="label">📋 عدد الأيام</div><div class="value">@Model.Rows.Count</div></div>
+    <div class="stat"><div class="label">⏱️ إضافي خام</div><div class="value">@Model.TotalRawHours <small>ساعة</small></div><div class="hint">@Model.TotalRawMinutes دقيقة</div></div>
+    <div class="stat ok"><div class="label">✅ إضافي معتمد</div><div class="value">@Model.TotalApprovedHours <small>ساعة</small></div><div class="hint">@Model.TotalApprovedMinutes دقيقة</div></div>
+    <div class="stat warn"><div class="label">⏳ بانتظار الاعتماد</div><div class="value">@Model.PendingCount</div><div class="hint">يوم بها إضافي خام غير معتمد</div></div>
+</div>
+
 <div class="card">
-    <div class="table-responsive">
-        <table class="table table-striped mb-0">
-            <thead><tr><th>الموظف</th><th>الفترة</th><th>محسوب (ساعة)</th><th>معتمد (ساعة)</th><th>المعامل</th><th>الحالة</th><th>في كشف؟</th><th>اعتماد</th></tr></thead>
-            <tbody>
-            @foreach (var o in Model)
-            {
-                <tr>
-                    <td>@o.Employee?.FullName (@o.Employee?.EmployeeCode)</td>
-                    <td>@o.PeriodStart.ToString("yyyy-MM-dd") → @o.PeriodEnd.ToString("yyyy-MM-dd")</td>
-                    <td>@o.CalculatedHours</td>
-                    <td>@o.ApprovedHours</td>
-                    <td>@o.OvertimeMultiplier</td>
-                    <td>@(o.Status == ApprovalStatus.Approved ? "معتمد" : o.Status == ApprovalStatus.Rejected ? "مرفوض" : "قيد المراجعة")</td>
-                    <td>@(o.PayrollItemId.HasValue ? "نعم" : "لا")</td>
-                    <td class="text-nowrap">
-                        <form asp-action="Approve" asp-route-id="@o.Id" method="post" class="d-inline d-flex gap-1">
-                            <input type="number" step="0.01" min="0" name="approvedHours" value="@o.ApprovedHours" class="form-control form-control-sm" style="width:100px" />
-                            <button class="btn btn-sm btn-success" type="submit">اعتماد</button>
-                        </form>
-                        <form asp-action="Reject" asp-route-id="@o.Id" method="post" class="d-inline">
-                            <button class="btn btn-sm btn-outline-danger" type="submit">رفض</button>
-                        </form>
-                    </td>
-                </tr>
-            }
-            @if (!Model.Any())
-            { <tr><td colspan="8" class="text-center text-muted py-4">لا توجد سجلات إضافي</td></tr> }
-            </tbody>
-        </table>
+    <div class="card-head">
+        <h3>الأيام</h3>
+        <form method="post" asp-action="ApproveAll"
+              data-confirm="اعتماد كامل الإضافي الخام لكل الأيام المعروضة؟ (تُتجاوز الفترات المقفلة تلقائيًا)">
+            <input type="hidden" name="from" value="@f.From.ToString("yyyy-MM-dd")" />
+            <input type="hidden" name="to" value="@f.To.ToString("yyyy-MM-dd")" />
+            @if (!string.IsNullOrEmpty(f.Department)) { <input type="hidden" name="department" value="@f.Department" /> }
+            @if (f.EmployeeId.HasValue) { <input type="hidden" name="employeeId" value="@f.EmployeeId" /> }
+            @if (f.ShiftId.HasValue) { <input type="hidden" name="shiftId" value="@f.ShiftId" /> }
+            <input type="hidden" name="returnUrl" value="@Context.Request.Path@Context.Request.QueryString" />
+            <button type="submit" class="btn btn-accent btn-sm">اعتماد الجميع</button>
+        </form>
     </div>
+    @if (Model.Rows.Count == 0)
+    {
+        ViewData["message"] = "لا يوجد إضافي في هذه الفترة";
+        ViewData["hint"] = "لا توجد أيام بها إضافي خام. الإضافي يُحتسب من وقت نهاية الوردية الرسمية بعد تجاوز سماح الخروج.";
+        ViewData["icon"] = "⏱️";
+        <partial name="_Empty" />
+    }
+    else
+    {
+        <div class="table-wrap">
+            <table class="data">
+                <thead>
+                <tr>
+                    <th>كود</th><th>الموظف</th><th>القسم</th><th>التاريخ</th><th>الوردية</th>
+                    <th>نهاية الوردية</th><th>الخروج الفعلي</th><th>إضافي خام</th><th>معتمد (دقيقة)</th>
+                    <th>سعر الساعة</th><th>المبلغ المحسوب</th><th>الحالة</th><th>اعتماد</th>
+                </tr>
+                </thead>
+                <tbody>
+                @foreach (var r in Model.Rows)
+                {
+                    var rate = Model.HourlyRates.TryGetValue(r.EmployeeId, out var hr) ? hr : 0m;
+                    <tr>
+                        <td class="num">@r.EmployeeCode</td>
+                        <td>@r.EmployeeName</td>
+                        <td>@(r.Department ?? "-")</td>
+                        <td class="num">@r.WorkDate.ToString("yyyy-MM-dd")</td>
+                        <td>@(r.ShiftName ?? "-")</td>
+                        <td class="num">@r.ShiftEnd.ToString("HH:mm")</td>
+                        <td class="num">@(r.CheckOut?.ToString("HH:mm") ?? "-")</td>
+                        <td class="num">@r.RawMinutes</td>
+                        <td class="num">@r.ApprovedMinutes</td>
+                        <td class="money">@rate.ToString("N2")</td>
+                        <td class="money">@Model.EstimatedAmount(rate, r.ApprovedMinutes).ToString("N2")</td>
+                        <td>
+                            @if (r.ApprovedMinutes > 0)
+                            {
+                                <span class="badge ok">معتمد</span>
+                            }
+                            else if (r.RawMinutes > 0)
+                            {
+                                <span class="badge warn">بانتظار الاعتماد</span>
+                            }
+                            else
+                            {
+                                <span class="badge muted">لا يوجد</span>
+                            }
+                        </td>
+                        <td>
+                            <form method="post" asp-action="ApproveDay" class="btn-row">
+                                <input type="hidden" name="employeeId" value="@r.EmployeeId" />
+                                <input type="hidden" name="workDate" value="@r.WorkDate.ToString("yyyy-MM-dd")" />
+                                <input type="hidden" name="returnUrl" value="@Context.Request.Path@Context.Request.QueryString" />
+                                <input type="number" name="approvedMinutes" min="0" max="@r.RawMinutes" value="@(r.ApprovedMinutes > 0 ? r.ApprovedMinutes : r.RawMinutes)" style="width:90px" />
+                                <button type="submit" class="btn btn-accent btn-sm">اعتماد</button>
+                            </form>
+                            @if (r.ApprovedMinutes > 0)
+                            {
+                                <form method="post" asp-action="RejectDay" class="d-inline" data-confirm="إلغاء اعتماد الإضافي لهذا اليوم؟">
+                                    <input type="hidden" name="employeeId" value="@r.EmployeeId" />
+                                    <input type="hidden" name="workDate" value="@r.WorkDate.ToString("yyyy-MM-dd")" />
+                                    <input type="hidden" name="returnUrl" value="@Context.Request.Path@Context.Request.QueryString" />
+                                    <button type="submit" class="btn btn-ghost btn-sm">رفض</button>
+                                </form>
+                            }
+                        </td>
+                    </tr>
+                }
+                </tbody>
+            </table>
+        </div>
+    }
 </div>

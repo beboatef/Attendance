@@ -1,0 +1,78 @@
+@using HrPayroll.Domain.Entities
+@using HrPayroll.Infrastructure.Services
+@model List<OvertimeReportRow>
+@{
+    ViewData["Title"] = "تقرير الإضافي";
+    var f = ViewBag.Filter as AttendanceReportFilter ?? new AttendanceReportFilter();
+    var employees = ViewBag.Employees as List<Employee> ?? new List<Employee>();
+    var departments = ViewBag.Departments as List<Department> ?? new List<Department>();
+    var q = new Dictionary<string, string>
+    {
+        ["from"] = f.From.ToString("yyyy-MM-dd"),
+        ["to"] = f.To.ToString("yyyy-MM-dd"),
+        ["department"] = f.Department ?? string.Empty,
+        ["employeeId"] = f.EmployeeId?.ToString() ?? string.Empty,
+        ["shiftId"] = f.ShiftId?.ToString() ?? string.Empty
+    };
+}
+<div class="card">
+    <div class="card-head">
+        <div><h2>تقرير الإضافي</h2><div class="sub">@f.PeriodText — @Model.Count صف — إجمالي المعتمد @Math.Round(Model.Sum(r => r.ApprovedMinutes) / 60m, 2) ساعة</div></div>
+        <div class="btn-row">
+            <a class="btn btn-soft btn-sm" asp-action="ExportOvertimeExcel" asp-all-route-data="q">Excel</a>
+            <a class="btn btn-ghost btn-sm" asp-action="Index">رجوع</a>
+        </div>
+    </div>
+    <div class="card-body">
+        <form method="get" class="filters">
+            <div class="field"><label>من</label><input type="date" name="from" value="@f.From.ToString("yyyy-MM-dd")" /></div>
+            <div class="field"><label>إلى</label><input type="date" name="to" value="@f.To.ToString("yyyy-MM-dd")" /></div>
+            <div class="field">
+                <label>القسم</label>
+                <select name="department"><option value="">كل الأقسام</option>
+                    @foreach (var d in departments) { <option value="@d.Name" selected="@(f.Department == d.Name)">@d.Name</option> }
+                </select>
+            </div>
+            <div class="field">
+                <label>الموظف</label>
+                <select name="employeeId"><option value="">الكل</option>
+                    @foreach (var e in employees) { <option value="@e.Id" selected="@(f.EmployeeId == e.Id)">@e.EmployeeCode — @e.FullName</option> }
+                </select>
+            </div>
+            <div class="field actions"><button type="submit" class="btn btn-primary">عرض</button></div>
+        </form>
+    </div>
+</div>
+<div class="card">
+    @if (Model.Count == 0)
+    {
+        ViewData["message"] = "لا يوجد إضافي في هذه الفترة";
+        ViewData["icon"] = "⏱️";
+        <partial name="_Empty" />
+    }
+    else
+    {
+        <div class="table-wrap">
+            <table class="data">
+                <thead><tr><th>كود</th><th>الاسم</th><th>القسم</th><th>التاريخ</th><th>الوردية</th><th>نهاية الوردية</th><th>الخروج</th><th>خام (دقيقة)</th><th>معتمد (دقيقة)</th><th>ساعة</th></tr></thead>
+                <tbody>
+                @foreach (var r in Model)
+                {
+                    <tr>
+                        <td class="num">@r.EmployeeCode</td>
+                        <td>@r.EmployeeName</td>
+                        <td>@(r.Department ?? "-")</td>
+                        <td class="num">@r.WorkDate.ToString("yyyy-MM-dd")</td>
+                        <td>@(r.ShiftName ?? "-")</td>
+                        <td class="num">@r.ShiftEnd.ToString("HH:mm")</td>
+                        <td class="num">@(r.CheckOut?.ToString("HH:mm") ?? "-")</td>
+                        <td class="num">@r.RawMinutes</td>
+                        <td class="num">@r.ApprovedMinutes</td>
+                        <td class="num">@r.DecimalHours</td>
+                    </tr>
+                }
+                </tbody>
+            </table>
+        </div>
+    }
+</div>

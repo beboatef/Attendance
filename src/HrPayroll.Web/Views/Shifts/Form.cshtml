@@ -1,56 +1,98 @@
+@using HrPayroll.Domain.Entities
 @model Shift
-@{ ViewData["Title"] = Model.Id == 0 ? "إضافة وردية" : "تعديل وردية"; }
+@{
+    var isEdit = Model.Id > 0;
+    ViewData["Title"] = isEdit ? "تعديل وردية" : "إضافة وردية";
+    var dayNames = new[] { "الأحد", "الاثنين", "الثلاثاء", "الأربعاء", "الخميس", "الجمعة", "السبت" };
+    var selectedDays = Model.WorkingDaySet();
+}
 <div class="card">
+    <div class="card-head">
+        <h2>@ViewData["Title"]</h2>
+        <a class="btn btn-ghost btn-sm" asp-action="Index">رجوع</a>
+    </div>
     <div class="card-body">
-        <form asp-action="@(Model.Id == 0 ? "Create" : "Edit")" asp-route-id="@Model.Id" method="post" class="row g-3">
-            <div asp-validation-summary="ModelOnly" class="text-danger"></div>
-            <div class="col-md-6">
-                <label asp-for="ShiftName" class="form-label">اسم الوردية</label>
-                <input asp-for="ShiftName" class="form-control" required />
-            </div>
-            <div class="col-md-3">
-                <label asp-for="StartTime" class="form-label">وقت البداية</label>
-                <input asp-for="StartTime" type="time" value="@Model.StartTime.ToString(@"hh\:mm")" class="form-control" />
-            </div>
-            <div class="col-md-3">
-                <label asp-for="EndTime" class="form-label">وقت النهاية</label>
-                <input asp-for="EndTime" type="time" value="@Model.EndTime.ToString(@"hh\:mm")" class="form-control" />
-            </div>
-            <div class="col-md-3">
-                <label asp-for="GraceMinutes" class="form-label">دقائق السماح</label>
-                <input asp-for="GraceMinutes" type="number" class="form-control" />
-                <span asp-validation-for="GraceMinutes" class="text-danger"></span>
-            </div>
-            <div class="col-md-3">
-                <label asp-for="OvertimeMultiplier" class="form-label">معامل الإضافي</label>
-                <input asp-for="OvertimeMultiplier" type="number" step="0.01" class="form-control" />
-                <span asp-validation-for="OvertimeMultiplier" class="text-danger"></span>
-            </div>
-            <div class="col-md-3">
-                <label asp-for="OvertimeMinMinutes" class="form-label">أقل دقائق إضافي معتبرة</label>
-                <input asp-for="OvertimeMinMinutes" type="number" class="form-control" />
-            </div>
-            <div class="col-md-3 d-flex align-items-end">
-                <div class="form-check">
-                    <input asp-for="IsOvernight" class="form-check-input" />
-                    <label asp-for="IsOvernight" class="form-check-label">وردية ليلية (تعبر منتصف الليل)</label>
+        <form method="post" asp-action="@(isEdit ? "Edit" : "Create")" asp-route-id="@(isEdit ? Model.Id : (int?)null)">
+            <input type="hidden" asp-for="Id" />
+            <div asp-validation-summary="ModelOnly" class="alert alert-danger" style="display:@(ViewData.ModelState.ErrorCount > 0 ? "flex" : "none")"></div>
+
+            <div class="form-grid">
+                <div class="field span-2">
+                    <label asp-for="ShiftName">اسم الوردية</label>
+                    <input asp-for="ShiftName" />
+                    <span class="field-error">@Html.ValidationMessage("ShiftName")</span>
+                </div>
+                <div class="field">
+                    <label asp-for="ShiftNumber">ترتيب الوردية</label>
+                    <input asp-for="ShiftNumber" type="number" min="1" max="99" />
+                </div>
+                <div class="field">
+                    <label asp-for="StartTime">وقت البداية</label>
+                    <input asp-for="StartTime" type="time" value="@Model.StartTime.ToString(@"hh\:mm")" />
+                </div>
+                <div class="field">
+                    <label asp-for="StandardHours">الساعات القياسية</label>
+                    <input asp-for="StandardHours" type="number" step="0.5" min="0.5" max="24" />
+                    <span class="hint">وقت النهاية يُحسب تلقائيًا = البداية + هذه المدة. مثال: 07:00 + 8 ساعات = 15:00</span>
+                </div>
+                <div class="field">
+                    <label asp-for="EntryGraceMinutes">سماح الدخول (دقيقة)</label>
+                    <input asp-for="EntryGraceMinutes" type="number" min="0" max="240" />
+                </div>
+                <div class="field">
+                    <label asp-for="ExitGraceMinutes">سماح الخروج (دقيقة)</label>
+                    <input asp-for="ExitGraceMinutes" type="number" min="0" max="240" />
+                </div>
+                <div class="field">
+                    <label asp-for="OvertimeMultiplier">معامل الإضافي</label>
+                    <input asp-for="OvertimeMultiplier" type="number" step="0.1" min="1" value="1" readonly />
+                    <span class="hint">سياسة الشركة: 1 — لا مضاعفة للإضافي.</span>
+                </div>
+                <div class="field">
+                    <label asp-for="OvertimeMinMinutes">أقل مدة إضافي معتبرة (دقيقة)</label>
+                    <input asp-for="OvertimeMinMinutes" type="number" min="0" max="240" />
+                </div>
+                <div class="field">
+                    <label asp-for="IsActive">نشطة</label>
+                    <select asp-for="IsActive">
+                        <option value="true">نشطة</option>
+                        <option value="false">معطّلة</option>
+                    </select>
                 </div>
             </div>
-            <div class="col-md-3 d-flex align-items-end">
-                <div class="form-check">
-                    <input asp-for="IsActive" class="form-check-input" />
-                    <label asp-for="IsActive" class="form-check-label">نشطة</label>
-                </div>
+
+            <div class="section-title">أيام عمل الوردية</div>
+            <div class="btn-row">
+                @for (var d = 0; d <= 6; d++)
+                {
+                    var isChecked = selectedDays.Contains((DayOfWeek)d);
+                    <label class="badge @(isChecked ? "info" : "muted")" style="cursor:pointer;padding:6px 12px">
+                        <input type="checkbox" name="day_@d" value="@d" checked="@isChecked" style="margin-inline-end:5px" />
+                        @dayNames[d]
+                    </label>
+                }
             </div>
-            <div class="col-12">
-                <label asp-for="Notes" class="form-label">ملاحظات</label>
-                <textarea asp-for="Notes" class="form-control" rows="2"></textarea>
-            </div>
-            <div class="col-12 d-flex gap-2">
-                <button class="btn btn-primary">حفظ</button>
-                <a class="btn btn-secondary" asp-action="Index">إلغاء</a>
+            <input type="hidden" asp-for="WorkingDays" id="workingDaysHidden" />
+
+            <div class="section-title">ملاحظات</div>
+            <textarea asp-for="Notes" rows="2"></textarea>
+
+            <div class="btn-row" style="margin-top:18px">
+                <button type="submit" class="btn btn-primary btn-lg">حفظ الوردية</button>
+                <a class="btn btn-ghost btn-lg" asp-action="Index">إلغاء</a>
             </div>
         </form>
     </div>
 </div>
-@section Scripts { <partial name="_ValidationScriptsPartial" /> }
+
+@section Scripts {
+    <partial name="_ValidationScriptsPartial" />
+    <script>
+        // تجميع أيام العمل المختارة في حقل واحد قبل الإرسال
+        document.querySelector('form').addEventListener('submit', function () {
+            var days = [];
+            document.querySelectorAll('input[name^="day_"]:checked').forEach(function (cb) { days.push(cb.value); });
+            document.getElementById('workingDaysHidden').value = days.sort().join(',');
+        });
+    </script>
+}

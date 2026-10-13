@@ -23,6 +23,11 @@
   </ItemGroup>
 
   <ItemGroup>
+    <!-- خط PDF العربي مطابق لما يستخدمه التطبيق -->
+    <None Include="..\..\src\HrPayroll.Infrastructure\Assets\Fonts\*.ttf" Link="Assets\Fonts\%(Filename)%(Extension)" CopyToOutputDirectory="PreserveNewest" />
+  </ItemGroup>
+
+  <ItemGroup>
     <ProjectReference Include="..\..\src\HrPayroll.Domain\HrPayroll.Domain.csproj" />
     <ProjectReference Include="..\..\src\HrPayroll.Infrastructure\HrPayroll.Infrastructure.csproj" />
   </ItemGroup>

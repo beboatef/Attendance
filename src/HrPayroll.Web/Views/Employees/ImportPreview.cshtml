@@ -1,0 +1,147 @@
+@using HrPayroll.Domain.Enums
+@using HrPayroll.Infrastructure.Import
+@model HrPayroll.Web.ViewModels.EmployeeImportPreviewViewModel
+@{
+    ViewData["Title"] = "معاينة استيراد الموظفين";
+    var a = Model.Analysis;
+}
+<div class="card">
+    <div class="card-head">
+        <div>
+            <h2>معاينة الملف: @Model.FileName</h2>
+            <div class="sub">الصيغة المكتشفة: @a.Format — دوال التحليل: @a.Rows.Count صف</div>
+        </div>
+        <a class="btn btn-ghost btn-sm" asp-action="Import">رفع ملف آخر</a>
+    </div>
+    <div class="card-body">
+        @if (a.AlreadyImported)
+        {
+            <div class="alert alert-warning">
+                <span>⚠️ نفس الملف استُورد من قبل. @a.PreviousImportSummary لن يتم تكرار الموظفين — سيُعرضون كـ "موجود بنفس البيانات".</span>
+            </div>
+        }
+
+        <div class="stat-grid">
+            <div class="stat"><div class="label">إجمالي الصفوف</div><div class="value">@a.Total</div></div>
+            <div class="stat ok"><div class="label">موظفون جدد</div><div class="value">@a.NewCount</div></div>
+            <div class="stat warn"><div class="label">سيتم تحديثهم</div><div class="value">@a.UpdateCount</div></div>
+            <div class="stat"><div class="label">بدون تغيير</div><div class="value">@a.UnchangedCount</div></div>
+            <div class="stat bad"><div class="label">مكرر</div><div class="value">@a.DuplicateCount</div></div>
+            <div class="stat bad"><div class="label">غير صالح</div><div class="value">@a.InvalidCount</div></div>
+        </div>
+
+        <div class="section-title">خريطة الأعمدة المكتشفة وربطها بحقول النظام</div>
+        <div class="table-wrap">
+            <table class="data">
+                <thead><tr><th>حقل النظام</th><th>عنوان العمود في الملف</th></tr></thead>
+                <tbody>
+                @if (a.Mapping is not null)
+                {
+                    foreach (var kv in a.Mapping.Columns.OrderBy(x => x.Key))
+                    {
+                        <tr>
+                            <td>@FieldName(kv.Key)</td>
+                            <td>@(kv.Value < a.Headers.Length ? a.Headers[kv.Value] : $"العمود #{kv.Value + 1}")</td>
+                        </tr>
+                    }
+                }
+                </tbody>
+            </table>
+        </div>
+
+        <form method="post" asp-action="ImportConfirm" style="margin-top:18px">
+            <input type="hidden" name="token" value="@Model.Token" />
+            <input type="hidden" name="fileName" value="@Model.FileName" />
+            <div class="form-grid">
+                <div class="field span-2">
+                    <label>وضع الاستيراد</label>
+                    <select name="mode">
+                        <option value="@((int)EmployeeImportMode.CreateOnly)">إضافة الموظفين الجدد فقط (لا يُلمس الموجود)</option>
+                        <option value="@((int)EmployeeImportMode.CreateAndUpdate)">إضافة الجدد وتحديث بيانات الموجودين صراحةً</option>
+                    </select>
+                    <span class="hint">لا يتم أبدًا تحديث بيانات موظف موجود في الوضع الأول، وكل تحديث يُسجَّل في سجل المراجعة.</span>
+                </div>
+            </div>
+            <div class="btn-row">
+                <button type="submit" class="btn btn-accent btn-lg" @(a.ValidCount == 0 ? "disabled" : "")>
+                    تأكيد الاستيراد (@a.ValidCount صف صالح)
+                </button>
+                <a class="btn btn-ghost btn-lg" asp-action="Import">إلغاء</a>
+            </div>
+        </form>
+    </div>
+</div>
+
+<div class="card">
+    <div class="card-head">
+        <h3>تفاصيل الصفوف والتحقق</h3>
+        <input type="text" data-table-filter="#rowsTable" placeholder="بحث فوري..." style="max-width:260px" />
+    </div>
+    <div class="table-wrap">
+        <table class="data" id="rowsTable">
+            <thead>
+            <tr>
+                <th>صف</th><th>النتيجة</th><th>الكود</th><th>كود البصمة</th><th>الاسم</th><th>القسم</th>
+                <th>المسمى</th><th>الراتب</th><th>تاريخ التعيين</th><th>ملاحظات</th>
+            </tr>
+            </thead>
+            <tbody>
+            @if (a.Rows.Count == 0)
+            {
+                <tr data-empty-row="1"><td colspan="10" class="hint" style="text-align:center">لا توجد صفوف بيانات في الملف</td></tr>
+            }
+            @foreach (var r in a.Rows)
+            {
+                var cls = r.Status switch
+                {
+                    EmployeeImportRowStatus.New => "ok",
+                    EmployeeImportRowStatus.Update => "warn",
+                    EmployeeImportRowStatus.Unchanged => "muted",
+                    _ => "bad"
+                };
+                var txt = r.Status switch
+                {
+                    EmployeeImportRowStatus.New => "جديد",
+                    EmployeeImportRowStatus.Update => "تحديث",
+                    EmployeeImportRowStatus.Unchanged => "بدون تغيير",
+                    EmployeeImportRowStatus.Duplicate => "مكرر",
+                    _ => "غير صالح"
+                };
+                <tr>
+                    <td class="num">@r.RowNumber</td>
+                    <td><span class="badge @cls">@txt</span></td>
+                    <td class="num">@(r.EmployeeCode ?? "-")</td>
+                    <td class="num">@(r.DeviceEmployeeCode ?? "-")</td>
+                    <td>@(r.FullName ?? "-")</td>
+                    <td>@(r.Department ?? "-")</td>
+                    <td>@(r.JobTitle ?? "-")</td>
+                    <td class="money">@(r.BasicSalary?.ToString("N2") ?? "-")</td>
+                    <td class="num">@(r.HireDate?.ToString("yyyy-MM-dd") ?? "-")</td>
+                    <td class="wrap">@string.Join(" | ", r.Messages)</td>
+                </tr>
+            }
+            </tbody>
+        </table>
+    </div>
+</div>
+
+@functions {
+    private static string FieldName(EmployeeField f) => f switch
+    {
+        EmployeeField.EmployeeCode => "كود الموظف",
+        EmployeeField.DeviceEmployeeCode => "كود البصمة",
+        EmployeeField.FullName => "الاسم",
+        EmployeeField.Department => "القسم",
+        EmployeeField.JobTitle => "المسمى الوظيفي",
+        EmployeeField.BasicSalary => "الراتب الأساسي",
+        EmployeeField.DailyRate => "الأجر اليومي",
+        EmployeeField.HireDate => "تاريخ التعيين",
+        EmployeeField.Phone => "الهاتف",
+        EmployeeField.Email => "البريد الإلكتروني",
+        EmployeeField.NationalId => "الرقم القومي",
+        EmployeeField.StandardWorkHours => "ساعات العمل",
+        EmployeeField.AnnualLeaveEntitlement => "استحقاق الإجازة",
+        EmployeeField.Notes => "ملاحظات",
+        _ => f.ToString()
+    };
+}

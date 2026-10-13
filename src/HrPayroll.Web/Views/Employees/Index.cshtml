@@ -1,78 +1,121 @@
-@model EmployeeIndexViewModel
-@{ ViewData["Title"] = "الموظفون"; }
-<div class="card mb-3">
+@using HrPayroll.Domain.Enums
+@model HrPayroll.Web.ViewModels.EmployeeIndexViewModel
+@{
+    ViewData["Title"] = "الموظفون";
+}
+<div class="card">
+    <div class="card-head">
+        <h2>إدارة الموظفين</h2>
+        <div class="btn-row">
+            <a class="btn btn-soft btn-sm" asp-action="Import">استيراد من Excel</a>
+            <a class="btn btn-primary btn-sm" asp-action="Create">+ إضافة موظف</a>
+        </div>
+    </div>
     <div class="card-body">
-        <form method="get" class="row g-3 align-items-end">
-            <div class="col-md-4">
-                <label class="form-label">بحث (الاسم / الكود)</label>
-                <input type="text" name="search" value="@Model.Search" class="form-control" />
+        <form method="get" class="filters">
+            <div class="field">
+                <label>بحث</label>
+                <input type="text" name="search" value="@Model.Search" placeholder="كود / اسم / بصمة / هاتف" />
             </div>
-            <div class="col-md-3">
-                <label class="form-label">القسم</label>
-                <select name="department" class="form-select">
-                    <option value="">الكل</option>
-                    @foreach (var d in Model.Departments)
+            <div class="field">
+                <label>القسم</label>
+                <select name="departmentId">
+                    <option value="">كل الأقسام</option>
+                    @foreach (var d in Model.DepartmentRefs)
                     {
-                        <option value="@d" selected="@(d == Model.DepartmentFilter)">@d</option>
+                        <option value="@d.Id" selected="@(Model.DepartmentId == d.Id)">@d.Name</option>
                     }
                 </select>
             </div>
-            <div class="col-md-2">
-                <label class="form-label">الحالة</label>
-                <select name="isActive" class="form-select">
-                    <option value="">الكل</option>
-                    <option value="true" selected="@(Model.IsActive == true)">نشط</option>
-                    <option value="false" selected="@(Model.IsActive == false)">معطّل</option>
+            <div class="field">
+                <label>الوردية</label>
+                <select name="shiftId">
+                    <option value="">كل الورديات</option>
+                    @foreach (var s in Model.Shifts)
+                    {
+                        <option value="@s.Id" selected="@(Model.ShiftId == s.Id)">@s.ShiftName</option>
+                    }
                 </select>
             </div>
-            <div class="col-md-3 d-flex gap-2">
-                <button class="btn btn-primary">بحث</button>
-                <a class="btn btn-success" asp-action="Create">إضافة موظف</a>
+            <div class="field">
+                <label>الحالة الوظيفية</label>
+                <select name="employmentStatus">
+                    <option value="">الكل</option>
+                    @foreach (var st in Enum.GetValues<EmploymentStatus>())
+                    {
+                        <option value="@((int)st)" selected="@(Model.EmploymentStatus == st)">@st</option>
+                    }
+                </select>
+            </div>
+            <div class="field actions">
+                <button type="submit" class="btn btn-primary">تصفية</button>
+                <a class="btn btn-ghost" asp-action="Index">مسح</a>
             </div>
         </form>
     </div>
 </div>
 
 <div class="card">
-    <div class="card-header fw-bold">قائمة الموظفين (@Model.TotalCount)</div>
-    <div class="table-responsive">
-        <table class="table table-striped mb-0">
-            <thead>
-            <tr>
-                <th>الكود</th><th>كود الجهاز</th><th>الاسم</th><th>المسمى</th><th>القسم</th>
-                <th>الوردية</th><th>الراتب</th><th>التعيين</th><th>الحالة</th><th>إجراءات</th>
-            </tr>
-            </thead>
-            <tbody>
-            @if (!Model.Employees.Any())
-            {
-                <tr><td colspan="10" class="text-center text-muted py-4">لا توجد بيانات</td></tr>
-            }
-            @foreach (var e in Model.Employees)
-            {
-                <tr>
-                    <td>@e.EmployeeCode</td>
-                    <td>@e.DeviceEmployeeCode</td>
-                    <td>@e.FullName</td>
-                    <td>@e.JobTitle</td>
-                    <td>@e.Department</td>
-                    <td>@e.Shift?.ShiftName</td>
-                    <td>@e.BasicSalary.ToString("#,##0.00")</td>
-                    <td>@e.HireDate.ToString("yyyy-MM-dd")</td>
-                    <td>
-                        @if (e.IsActive) { <span class="badge bg-success">نشط</span> }
-                        else { <span class="badge bg-secondary">معطّل</span> }
-                    </td>
-                    <td class="text-nowrap">
-                        <a class="btn btn-sm btn-outline-primary" asp-action="Edit" asp-route-id="@e.Id">تعديل</a>
-                        <a class="btn btn-sm btn-outline-secondary" asp-action="Details" asp-route-id="@e.Id">تفاصيل</a>
-                        <form asp-action="ToggleActive" asp-route-id="@e.Id" method="post" class="d-inline">
-                            <button class="btn btn-sm btn-outline-warning" type="submit">@(e.IsActive ? "تعطيل" : "تفعيل")</button>
-                        </form>
-                    </td>
-                </tr>
-            }
-            </tbody>
-        </table>
+    <div class="card-head">
+        <h3>النتائج (@Model.TotalCount موظف)</h3>
+        <input type="text" data-table-filter="#empTable" placeholder="بحث فوري في الصفحة..." style="max-width:280px" />
     </div>
+    @if (Model.Employees.Count == 0)
+    {
+        ViewData["message"] = "لا يوجد موظفون مطابقون. أضف موظفًا يدويًا أو استورد القائمة من ملف Excel.";
+        ViewData["actionUrl"] = Url.Action("Import");
+        ViewData["actionText"] = "استيراد الموظفين";
+        ViewData["icon"] = "👤";
+        <partial name="_Empty" />
+    }
+    else
+    {
+        <div class="table-wrap">
+            <table class="data" id="empTable">
+                <thead>
+                <tr>
+                    <th>الكود</th><th>كود البصمة</th><th>الاسم</th><th>القسم</th><th>المسمى</th>
+                    <th>الراتب الأساسي</th><th>الأجر اليومي المحتسب</th><th>الوردية</th>
+                    <th>تاريخ التعيين</th><th>الحالة</th><th></th>
+                </tr>
+                </thead>
+                <tbody>
+                @foreach (var e in Model.Employees)
+                {
+                    var daily = e.DailyRate is > 0m ? e.DailyRate.Value : (e.BasicSalary / 30m);
+                    <tr>
+                        <td class="num">@e.EmployeeCode</td>
+                        <td class="num">@(e.DeviceEmployeeCode ?? "-")</td>
+                        <td>@e.FullName</td>
+                        <td>@(e.Department ?? "-")</td>
+                        <td>@(e.JobTitle ?? "-")</td>
+                        <td class="money">@e.BasicSalary.ToString("N2")</td>
+                        <td class="money">@daily.ToString("N2")</td>
+                        <td>@(e.Shift?.ShiftName ?? "-")</td>
+                        <td class="num">@e.HireDate.ToString("yyyy-MM-dd")</td>
+                        <td>
+                            @if (e.IsActive)
+                            {
+                                <span class="badge ok">على العمل</span>
+                            }
+                            else
+                            {
+                                <span class="badge muted">@e.EmploymentStatus</span>
+                            }
+                        </td>
+                        <td class="btn-row">
+                            <a class="btn btn-ghost btn-sm" asp-action="Details" asp-route-id="@e.Id">عرض</a>
+                            <a class="btn btn-soft btn-sm" asp-action="Edit" asp-route-id="@e.Id">تعديل</a>
+                            <form method="post" asp-action="ToggleActive" asp-route-id="@e.Id" class="d-inline"
+                                  data-confirm="@(e.IsActive ? "تعطيل الموظف؟ سيبقى سجلّه التاريخي محفوظًا لكنه لن يدخل في كشوف الرواتب الجديدة." : "إعادة تفعيل الموظف؟")">
+                                <button type="submit" class="btn btn-ghost btn-sm">@(e.IsActive ? "تعطيل" : "تفعيل")</button>
+                            </form>
+                        </td>
+                    </tr>
+                }
+                </tbody>
+            </table>
+        </div>
+        <partial name="_Pager" model="Model" />
+    }
 </div>

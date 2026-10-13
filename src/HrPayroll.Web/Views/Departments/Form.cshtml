@@ -1,0 +1,48 @@
+@model HrPayroll.Web.ViewModels.DepartmentFormViewModel
+@{
+    var isEdit = Model.Id > 0;
+    ViewData["Title"] = isEdit ? "تعديل قسم" : "إضافة قسم";
+}
+<div class="card">
+    <div class="card-head">
+        <h2>@ViewData["Title"]</h2>
+        <a class="btn btn-ghost btn-sm" asp-action="Index">رجوع</a>
+    </div>
+    <div class="card-body">
+        <form method="post" asp-action="@(isEdit ? "Edit" : "Create")" asp-route-id="@(isEdit ? Model.Id : (int?)null)">
+            <input type="hidden" asp-for="Id" />
+            <div asp-validation-summary="ModelOnly" class="alert alert-danger" style="display:@(ViewData.ModelState.ErrorCount > 0 ? "flex" : "none")"></div>
+            <div class="form-grid">
+                <div class="field">
+                    <label asp-for="Name">اسم القسم</label>
+                    <input asp-for="Name" />
+                    <span asp-validation-for="Name" class="field-error"></span>
+                </div>
+                <div class="field">
+                    <label asp-for="Code">الكود</label>
+                    <input asp-for="Code" />
+                </div>
+                <div class="field">
+                    <label asp-for="ManagerName">مدير القسم</label>
+                    <input asp-for="ManagerName" />
+                </div>
+                <div class="field">
+                    <label asp-for="IsActive">نشط</label>
+                    <select asp-for="IsActive">
+                        <option value="true">نشط</option>
+                        <option value="false">معطّل</option>
+                    </select>
+                </div>
+                <div class="field span-2">
+                    <label asp-for="Notes">ملاحظات</label>
+                    <textarea asp-for="Notes" rows="2"></textarea>
+                </div>
+            </div>
+            <div class="btn-row" style="margin-top:18px">
+                <button type="submit" class="btn btn-primary btn-lg">حفظ</button>
+                <a class="btn btn-ghost btn-lg" asp-action="Index">إلغاء</a>
+            </div>
+        </form>
+    </div>
+</div>
+@section Scripts { <partial name="_ValidationScriptsPartial" /> }

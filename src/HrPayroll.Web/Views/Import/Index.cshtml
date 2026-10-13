@@ -1,57 +1,69 @@
+@using HrPayroll.Domain.Entities
 @{
-    ViewData["Title"] = "استيراد تقرير البصمة";
+    ViewData["Title"] = "استيراد البصمات";
     var batches = ViewBag.Batches as List<ImportBatch> ?? new List<ImportBatch>();
 }
-<div class="card mb-3">
-    <div class="card-header fw-bold">رفع ملف البصمة</div>
+<div class="card">
+    <div class="card-head">
+        <div>
+            <h2>استيراد ملف بصمات جهاز الحضور</h2>
+            <div class="sub">ارفع الملف ← عاين وتحقق ← أكّد. التكرار محمي على مستوى البصمة الواحدة.</div>
+        </div>
+    </div>
     <div class="card-body">
-        <form asp-action="Upload" method="post" enctype="multipart/form-data" class="row g-3">
-            <div class="col-md-8">
-                <label class="form-label">اختر ملف البصمة (xls / xlsx / csv / Excel XML)</label>
-                <input type="file" name="file" class="form-control" required />
-                <div class="form-text">
-                    يتم اكتشاف نوع الملف الفعلي من محتواه، وليس من امتداده. الأعمدة المدعومة:
-                    No. / Device ID / ID. / Name / Att.Type / Att.Time
+        <form method="post" asp-action="Upload" enctype="multipart/form-data">
+            <div class="form-grid">
+                <div class="field span-2">
+                    <label>ملف البصمات (xlsx / xls / csv / Excel 2003 XML) — الحد الأقصى 25 ميجابايت</label>
+                    <input type="file" name="file" accept=".xlsx,.xls,.csv,.xml,.txt" required />
                 </div>
             </div>
-            <div class="col-md-4 d-flex align-items-end">
-                <button class="btn btn-primary w-100">تحليل ومعاينة</button>
+            <div class="alert alert-info" style="margin-top:14px">
+                <span>
+                    يدعم النظام ملفات البصمة المصدّرة من جهاز البصمة: ملف دخول فقط، أو خروج فقط، أو ملف واحد بكل الحركات.
+                    المطابقة تتم بكود الجهاز/البصمة لا بالاسم. البصمات المكررة (نفس الموظف ونفس الوقت) لا تُستورد مرتين.
+                </span>
+            </div>
+            <div class="btn-row">
+                <button type="submit" class="btn btn-primary btn-lg">تحليل الملف وعرض المعاينة</button>
             </div>
         </form>
     </div>
 </div>
 
 <div class="card">
-    <div class="card-header fw-bold">آخر عمليات الاستيراد</div>
-    <div class="table-responsive">
-        <table class="table table-striped mb-0">
-            <thead>
-            <tr>
-                <th>الملف</th><th>النوع</th><th>تاريخ الاستيراد</th><th>المستخدم</th>
-                <th>إجمالي</th><th>ناجح</th><th>مكرر</th><th>غير صالح</th><th>موظف غير معروف</th><th></th>
-            </tr>
-            </thead>
-            <tbody>
-            @if (!batches.Any())
-            {
-                <tr><td colspan="10" class="text-center text-muted py-4">لا توجد عمليات استيراد بعد</td></tr>
-            }
-            @foreach (var b in batches)
-            {
-                <tr>
-                    <td>@b.FileName</td>
-                    <td>@b.DetectedFormat</td>
-                    <td>@b.ImportedAt.ToLocalTime().ToString("yyyy-MM-dd HH:mm")</td>
-                    <td>@b.ImportedByName</td>
-                    <td>@b.TotalRows</td>
-                    <td class="text-success">@b.SuccessRows</td>
-                    <td class="text-warning">@b.DuplicateRows</td>
-                    <td class="text-danger">@b.InvalidRows</td>
-                    <td class="text-danger">@b.UnknownEmployeeRows</td>
-                    <td><a class="btn btn-sm btn-outline-primary" asp-action="Details" asp-route-id="@b.Id">تفاصيل</a></td>
-                </tr>
-            }
-            </tbody>
-        </table>
-    </div>
+    <div class="card-head"><h3>سجل عمليات الاستيراد</h3></div>
+    @if (batches.Count == 0)
+    {
+        ViewData["message"] = "لم يتم استيراد أي ملف بصمات بعد";
+        ViewData["icon"] = "📄";
+        <partial name="_Empty" />
+    }
+    else
+    {
+        <div class="table-wrap">
+            <table class="data">
+                <thead>
+                <tr><th>الملف</th><th>الصيغة</th><th>التاريخ</th><th>المستخدم</th><th>إجمالي</th><th>ناجح</th><th>مكرر</th><th>غير صالح</th><th>موظف غير معروف</th><th></th></tr>
+                </thead>
+                <tbody>
+                @foreach (var b in batches)
+                {
+                    <tr>
+                        <td class="wrap">@b.FileName</td>
+                        <td>@(b.DetectedFormat ?? "-")</td>
+                        <td class="num">@b.ImportedAt.ToLocalTime().ToString("yyyy-MM-dd HH:mm")</td>
+                        <td>@(b.ImportedByName ?? "-")</td>
+                        <td class="num">@b.TotalRows</td>
+                        <td class="num">@b.SuccessRows</td>
+                        <td class="num">@b.DuplicateRows</td>
+                        <td class="num">@b.InvalidRows</td>
+                        <td class="num">@b.UnknownEmployeeRows</td>
+                        <td><a class="btn btn-soft btn-sm" asp-action="Details" asp-route-id="@b.Id">عرض</a></td>
+                    </tr>
+                }
+                </tbody>
+            </table>
+        </div>
+    }
 </div>

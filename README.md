@@ -436,6 +436,35 @@ dotnet test tests/HrPayroll.Tests
 
 - اتجاه الحركة عند غياب نوع صريح: يُحدَّد بالقواعد، والحالات الغامضة تُعلَّم
   للمراجعة بدل الاحتساب المزدوج.
-- خصم الغياب/التأمينات/الضرائب: معطّل افتراضيًا حتى تُفعّله سياسة معتمدة.
-- الإضافي: لا يُضاف للراتب قبل اعتماده يدويًا (افتراضيًا).
+- خصم الغياب وخصم الإجازة بدون أجر: **مُفعَّلان افتراضيًا** (سعر اليوم = الأجر اليومي)
+  ويمكن تعطيلهما من شاشة الإعدادات. التأمينات/الضرائب غير مُنفَّذة كمكوّن مستقل.
+- الإضافي: لا يُضاف للراتب قبل اعتماده يدويًا (افتراضيًا) — المعتمد فقط يدخل الراتب.
 - لا يُخترع وقت بصمة مفقودة، ولا يُسجَّل غياب قبل استيراد بيانات اليوم.
+- لا يُحتسب كشف رواتب لفترة بلا أي بيانات حضور معالجة إلا بسماح صريح من الإعدادات
+  (`Payroll.AllowPayrollWithoutAttendance` = نعم).
+
+## 20) ما أُضيف في ترقية النظام الشاملة
+
+| الوحدة | الملفات الرئيسية |
+|---|---|
+| إدارة الموظفين والأقسام والمسميات | `EmployeesController`, `DepartmentsController`, `JobTitlesController`, `Organization.cs` |
+| استيراد الموظفين من Excel (معاينة/ربط أعمدة/جديد أو تحديث) | `EmployeeImportService`, `EmployeeColumnMapper`, `Views/Employees/Import*.cshtml` |
+| استيراد بصمات الجهاز (3 مراحل + كشف الصيغة + منع التكرار) | `AttendanceImportService`, `ColumnMapper`, `AttendanceFileParser` |
+| إعداد الورديات واكتشاف الوردية اليومية | `ShiftService`, `ShiftDetector`, `ShiftWindowResolver`, `PunchWorkDateResolver`, `Views/Shifts` |
+| معالجة الحضور (تأخير/انصراف مبكر/بصمة ناقصة/راحة/عطلة/إجازة) | `AttendanceProcessingService`, `PunchClassifier`, `AttendanceCalculator` |
+| تصحيح الحضور يدويًا مع أثر تدقيق | `AttendanceCorrectionService`, `Views/Attendance/Correct.cshtml` |
+| الإجازات وتحويل الغياب إلى إجازة | `LeaveService`, `LeavesController`, `Views/Leaves` |
+| العطلات الرسمية وأيام الراحة الأسبوعية | `HolidaysController`, `SettingKeys.WeeklyRestDays` |
+| اعتماد الإضافي (بدون أي مضاعفة) | `OvertimeController`, `Views/Overtime` |
+| الرواتب ودورة العمل (احتساب/مراجعة/اعتماد/قفل/إعادة فتح) | `PayrollService`, `PayrollCalculator`, `Views/Payroll` |
+| التقارير والتصدير Excel + PDF وكشوف الرواتب | `ReportService`, `ExcelExportService`, `PdfExportService`, `Views/Reports` |
+| واجهة عربية RTL حديثة | `Views/Shared/_Layout.cshtml`, `wwwroot/css/site.css`, `wwwroot/js/site.js` |
+| سجل التدقيق والصلاحيات | `AuditService`, `AppRoles`/`AppPolicies` في `Program.cs` |
+
+أوامر سريعة:
+
+```bat
+dotnet build HrPayroll.sln -c Release
+dotnet test HrPayroll.sln -c Release
+dotnet run --project src\HrPayroll.Web -c Release
+```

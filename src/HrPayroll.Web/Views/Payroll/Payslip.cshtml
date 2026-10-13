@@ -1,0 +1,99 @@
+@using HrPayroll.Infrastructure.Services
+@model PayslipData
+@{
+    var i = Model.Item;
+    ViewData["Title"] = $"كشف راتب {i.EmployeeName}";
+    var months = new[] { "يناير","فبراير","مارس","أبريل","مايو","يونيو","يوليو","أغسطس","سبتمبر","أكتوبر","نوفمبر","ديسمبر" };
+}
+<div class="card">
+    <div class="card-head">
+        <div>
+            <h2>كشف راتب — @months[Model.Month - 1] @Model.Year</h2>
+            <div class="sub">@i.EmployeeName (@i.EmployeeCode) — @(i.Department ?? "بدون قسم") — @(i.JobTitle ?? "بدون مسمى")</div>
+        </div>
+        <div class="btn-row no-print">
+            <a class="btn btn-soft btn-sm" asp-action="PayslipExcel" asp-route-id="@i.PayrollItemId">Excel</a>
+            <a class="btn btn-soft btn-sm" asp-action="PayslipPdf" asp-route-id="@i.PayrollItemId">PDF</a>
+            <a class="btn btn-ghost btn-sm" asp-action="Index" asp-route-year="@Model.Year" asp-route-month="@Model.Month">رجوع</a>
+            <button type="button" class="btn btn-ghost btn-sm" onclick="window.print()">طباعة</button>
+        </div>
+    </div>
+    <div class="card-body">
+        <div class="section-title">أساس الحساب</div>
+        <div class="def-grid">
+            <div class="def"><div class="k">الراتب الأساسي</div><div class="v">@i.BasicSalary.ToString("N2")</div></div>
+            <div class="def"><div class="k">الأجر اليومي (الراتب ÷ 30)</div><div class="v">@i.DailyRate.ToString("N2")</div></div>
+            <div class="def"><div class="k">أجر الساعة (الأجر اليومي ÷ 8)</div><div class="v">@i.HourlyRate.ToString("N2")</div></div>
+            <div class="def"><div class="k">معامل الإضافي</div><div class="v">1 (بدون مضاعفة)</div></div>
+        </div>
+
+        <div class="section-title">الحضور</div>
+        <div class="def-grid">
+            <div class="def"><div class="k">أيام الحضور</div><div class="v">@i.AttendanceDays</div></div>
+            <div class="def"><div class="k">أيام راحة مدفوعة</div><div class="v">@i.PaidRestDays</div></div>
+            <div class="def"><div class="k">إجازات مدفوعة</div><div class="v">@i.PaidLeaveDays</div></div>
+            <div class="def"><div class="k">إجازات بدون أجر</div><div class="v">@i.UnpaidLeaveDays</div></div>
+            <div class="def"><div class="k">أيام غياب</div><div class="v">@i.AbsenceDays</div></div>
+            <div class="def"><div class="k">دقائق التأخير</div><div class="v">@i.LateMinutes</div></div>
+        </div>
+
+        <div class="section-title">الإضافي</div>
+        <div class="def-grid">
+            <div class="def"><div class="k">إضافي خام (ساعة)</div><div class="v">@i.RawOvertimeHours</div></div>
+            <div class="def"><div class="k">إضافي معتمد (ساعة)</div><div class="v">@i.ApprovedOvertimeHours</div></div>
+            <div class="def"><div class="k">إضافي مدفوع (ساعة)</div><div class="v">@i.PaidOvertimeHours</div></div>
+            <div class="def"><div class="k">قيمة الإضافي</div><div class="v">@i.OvertimeAmount.ToString("N2") @Model.Currency</div></div>
+        </div>
+
+        <div class="section-title">الاستحقاقات</div>
+        <div class="table-wrap">
+            <table class="data">
+                <tbody>
+                <tr><td>الراتب الأساسي</td><td class="money">@i.BasicSalary.ToString("N2")</td></tr>
+                <tr><td>قيمة الإضافي المعتمد</td><td class="money">@i.OvertimeAmount.ToString("N2")</td></tr>
+                <tr><td>مكافآت</td><td class="money">@i.Bonuses.ToString("N2")</td></tr>
+                <tr><td>بدلات</td><td class="money">@i.Allowances.ToString("N2")</td></tr>
+                <tr><td>أيام عمل إضافية (@i.AdditionalDaysCount يوم)</td><td class="money">@i.AdditionalDaysAmount.ToString("N2")</td></tr>
+                <tr style="background:#f7f9fc"><td><strong>إجمالي الاستحقاقات</strong></td><td class="money"><strong>@i.GrossEarnings.ToString("N2")</strong></td></tr>
+                </tbody>
+            </table>
+        </div>
+
+        <div class="section-title">الخصومات</div>
+        <div class="table-wrap">
+            <table class="data">
+                <tbody>
+                <tr><td>خصم التأخير</td><td class="money">@i.LateDeduction.ToString("N2")</td></tr>
+                <tr><td>خصم الغياب</td><td class="money">@i.AbsenceDeduction.ToString("N2")</td></tr>
+                <tr><td>خصم الإجازة بدون أجر</td><td class="money">@i.UnpaidLeaveDeduction.ToString("N2")</td></tr>
+                <tr><td>السلف</td><td class="money">@i.LoansTotal.ToString("N2")</td></tr>
+                <tr><td>خصومات</td><td class="money">@i.DeductionsTotal.ToString("N2")</td></tr>
+                <tr><td>خصومات أخرى</td><td class="money">@i.OtherDeductions.ToString("N2")</td></tr>
+                <tr style="background:#f7f9fc"><td><strong>إجمالي الخصومات</strong></td><td class="money"><strong>@i.TotalDeductions.ToString("N2")</strong></td></tr>
+                </tbody>
+            </table>
+        </div>
+
+        <div style="margin-top:16px;background:#e8f7ee;border:1px solid #c7ead6;border-radius:10px;padding:14px;display:flex;justify-content:space-between;align-items:center">
+            <strong style="font-size:15px">صافي الراتب المستحق</strong>
+            <strong style="font-size:20px">@i.NetSalary.ToString("N2") @Model.Currency</strong>
+        </div>
+
+        @if (Model.Notes.Count > 0)
+        {
+            <div class="section-title">ملاحظات الحساب</div>
+            <ul>
+                @foreach (var n in Model.Notes)
+                {
+                    <li>@n</li>
+                }
+            </ul>
+        }
+
+        <div class="section-title">تفاصيل الحساب التقنية (JSON)</div>
+        <details>
+            <summary class="hint">عرض تفاصيل الحساب خطوة بخطوة لأغراض التدقيق</summary>
+            <pre style="white-space:pre-wrap;direction:ltr;text-align:left;background:#f7f9fc;border:1px solid #e3e8ef;border-radius:8px;padding:12px;font-size:12px">@i.CalculationDetails</pre>
+        </details>
+    </div>
+</div>

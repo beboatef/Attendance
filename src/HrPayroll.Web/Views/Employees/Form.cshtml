@@ -1,79 +1,132 @@
-@model EmployeeFormViewModel
-@{ ViewData["Title"] = Model.Id == 0 ? "إضافة موظف" : "تعديل موظف"; }
+@using HrPayroll.Domain.Enums
+@model HrPayroll.Web.ViewModels.EmployeeFormViewModel
+@{
+    var isEdit = Model.Id > 0;
+    ViewData["Title"] = isEdit ? "تعديل موظف" : "إضافة موظف";
+}
 <div class="card">
+    <div class="card-head">
+        <h2>@ViewData["Title"]</h2>
+        <a class="btn btn-ghost btn-sm" asp-action="Index">رجوع للقائمة</a>
+    </div>
     <div class="card-body">
-        <form asp-action="@(Model.Id == 0 ? "Create" : "Edit")" asp-route-id="@Model.Id" method="post" class="row g-3">
-            <div asp-validation-summary="ModelOnly" class="text-danger"></div>
-            <div class="col-md-4">
-                <label asp-for="EmployeeCode" class="form-label"></label>
-                <input asp-for="EmployeeCode" class="form-control" />
-                <span asp-validation-for="EmployeeCode" class="text-danger"></span>
-            </div>
-            <div class="col-md-4">
-                <label asp-for="DeviceEmployeeCode" class="form-label"></label>
-                <input asp-for="DeviceEmployeeCode" class="form-control" />
-            </div>
-            <div class="col-md-4">
-                <label asp-for="FullName" class="form-label"></label>
-                <input asp-for="FullName" class="form-control" />
-                <span asp-validation-for="FullName" class="text-danger"></span>
-            </div>
-            <div class="col-md-4">
-                <label asp-for="JobTitle" class="form-label"></label>
-                <input asp-for="JobTitle" class="form-control" />
-            </div>
-            <div class="col-md-4">
-                <label asp-for="Department" class="form-label"></label>
-                <input asp-for="Department" class="form-control" />
-            </div>
-            <div class="col-md-4">
-                <label asp-for="ShiftId" class="form-label"></label>
-                <select asp-for="ShiftId" class="form-select">
-                    <option value="">-- بدون وردية --</option>
-                    @foreach (var s in Model.Shifts)
-                    {
-                        <option value="@s.Id" selected="@(s.Id == Model.ShiftId)">@s.ShiftName (@s.StartTime.ToString(@"hh\:mm") - @s.EndTime.ToString(@"hh\:mm"))</option>
-                    }
-                </select>
-            </div>
-            <div class="col-md-4">
-                <label asp-for="BasicSalary" class="form-label"></label>
-                <input asp-for="BasicSalary" class="form-control" type="number" step="0.01" />
-                <span asp-validation-for="BasicSalary" class="text-danger"></span>
-            </div>
-            <div class="col-md-4">
-                <label asp-for="HireDate" class="form-label"></label>
-                <input asp-for="HireDate" class="form-control" type="date" />
-                <span asp-validation-for="HireDate" class="text-danger"></span>
-            </div>
-            <div class="col-md-4">
-                <label asp-for="Email" class="form-label"></label>
-                <input asp-for="Email" class="form-control" />
-                <span asp-validation-for="Email" class="text-danger"></span>
-            </div>
-            <div class="col-md-4">
-                <label asp-for="Phone" class="form-label"></label>
-                <input asp-for="Phone" class="form-control" />
-            </div>
-            <div class="col-md-4">
-                <label asp-for="NationalId" class="form-label"></label>
-                <input asp-for="NationalId" class="form-control" />
-            </div>
-            <div class="col-md-4 d-flex align-items-end">
-                <div class="form-check">
-                    <input asp-for="IsActive" class="form-check-input" />
-                    <label asp-for="IsActive" class="form-check-label"></label>
+        <form method="post" asp-action="@(isEdit ? "Edit" : "Create")" asp-route-id="@(isEdit ? Model.Id : (int?)null)">
+            <input type="hidden" asp-for="Id" />
+            <div asp-validation-summary="ModelOnly" class="alert alert-danger" style="display:@(ViewData.ModelState.ErrorCount > 0 ? "flex" : "none")"></div>
+
+            <div class="section-title">البيانات الأساسية</div>
+            <div class="form-grid">
+                <div class="field">
+                    <label asp-for="EmployeeCode">كود الموظف</label>
+                    <input asp-for="EmployeeCode" />
+                    <span asp-validation-for="EmployeeCode" class="field-error"></span>
+                </div>
+                <div class="field">
+                    <label asp-for="DeviceEmployeeCode">كود البصمة / الجهاز</label>
+                    <input asp-for="DeviceEmployeeCode" placeholder="اتركه فارغًا لاستخدام كود الموظف" />
+                    <span class="hint">قد يختلف عن كود الموظف الداخلي. المطابقة في الاستيراد تتم بهذا الكود أولًا.</span>
+                    <span asp-validation-for="DeviceEmployeeCode" class="field-error"></span>
+                </div>
+                <div class="field span-2">
+                    <label asp-for="FullName">الاسم الكامل</label>
+                    <input asp-for="FullName" />
+                    <span asp-validation-for="FullName" class="field-error"></span>
+                </div>
+                <div class="field">
+                    <label asp-for="DepartmentId">القسم</label>
+                    <select asp-for="DepartmentId" asp-items="Model.DepartmentList">
+                        <option value="">— بدون —</option>
+                    </select>
+                </div>
+                <div class="field">
+                    <label asp-for="JobTitleId">المسمى الوظيفي</label>
+                    <select asp-for="JobTitleId" asp-items="Model.JobTitleList">
+                        <option value="">— بدون —</option>
+                    </select>
                 </div>
             </div>
-            <div class="col-12">
-                <label asp-for="Notes" class="form-label"></label>
-                <textarea asp-for="Notes" class="form-control" rows="2"></textarea>
+
+            <div class="section-title">الأجر وساعات العمل</div>
+            <div class="form-grid">
+                <div class="field">
+                    <label asp-for="BasicSalary">الراتب الأساسي الشهري</label>
+                    <input asp-for="BasicSalary" type="number" step="0.01" min="0" />
+                    <span asp-validation-for="BasicSalary" class="field-error"></span>
+                </div>
+                <div class="field">
+                    <label asp-for="DailyRate">الأجر اليومي (اختياري)</label>
+                    <input asp-for="DailyRate" type="number" step="0.01" min="0" />
+                    <span class="hint">إن تُرك فارغًا: الأجر اليومي = الراتب ÷ عدد أيام الشهر (30 حسب الإعدادات).</span>
+                </div>
+                <div class="field">
+                    <label asp-for="StandardWorkHours">ساعات العمل القياسية يوميًا</label>
+                    <input asp-for="StandardWorkHours" type="number" step="0.5" min="0.5" max="24" />
+                    <span asp-validation-for="StandardWorkHours" class="field-error"></span>
+                </div>
+                <div class="field">
+                    <label asp-for="HireDate">تاريخ التعيين</label>
+                    <input asp-for="HireDate" type="date" />
+                    <span asp-validation-for="HireDate" class="field-error"></span>
+                </div>
             </div>
-            <div class="col-12 d-flex gap-2">
-                <button type="submit" class="btn btn-primary">حفظ</button>
-                <a class="btn btn-secondary" asp-action="Index">إلغاء</a>
+
+            <div class="section-title">الإجازات والحالة الوظيفية</div>
+            <div class="form-grid">
+                <div class="field">
+                    <label asp-for="AnnualLeaveEntitlement">استحقاق الإجازة السنوية (يوم)</label>
+                    <input asp-for="AnnualLeaveEntitlement" type="number" step="0.5" min="0" />
+                </div>
+                <div class="field">
+                    <label asp-for="AnnualLeaveBalance">الرصيد المتبقي</label>
+                    <input asp-for="AnnualLeaveBalance" type="number" step="0.5" min="0" />
+                </div>
+                <div class="field">
+                    <label asp-for="EmploymentStatus">الحالة الوظيفية</label>
+                    <select asp-for="EmploymentStatus" asp-items="Model.EmploymentStatusList"></select>
+                    <span class="hint">الموظف غير "على العمل" لا يُدرج في كشوف الرواتب الجديدة.</span>
+                </div>
+                <div class="field">
+                    <label asp-for="TerminationDate">تاريخ انتهاء الخدمة</label>
+                    <input asp-for="TerminationDate" type="date" />
+                </div>
+                <div class="field">
+                    <label asp-for="ShiftId">الوردية الأساسية</label>
+                    <select asp-for="ShiftId" asp-items="Model.ShiftList">
+                        <option value="">— بدون وردية ثابتة —</option>
+                    </select>
+                    <span class="hint">اختيارية: النظام يكتشف الوردية الفعلية من البصمات إذا لم تُحدد.</span>
+                </div>
+            </div>
+
+            <div class="section-title">بيانات التواصل</div>
+            <div class="form-grid">
+                <div class="field">
+                    <label asp-for="Phone">الهاتف</label>
+                    <input asp-for="Phone" />
+                </div>
+                <div class="field">
+                    <label asp-for="Email">البريد الإلكتروني</label>
+                    <input asp-for="Email" type="email" />
+                    <span asp-validation-for="Email" class="field-error"></span>
+                </div>
+                <div class="field">
+                    <label asp-for="NationalId">الرقم القومي</label>
+                    <input asp-for="NationalId" />
+                </div>
+                <div class="field span-2">
+                    <label asp-for="Notes">ملاحظات</label>
+                    <textarea asp-for="Notes" rows="2"></textarea>
+                </div>
+            </div>
+
+            <div class="btn-row" style="margin-top:20px">
+                <button type="submit" class="btn btn-primary btn-lg">@(isEdit ? "حفظ التعديلات" : "إضافة الموظف")</button>
+                <a class="btn btn-ghost btn-lg" asp-action="Index">إلغاء</a>
             </div>
         </form>
     </div>
 </div>
-@section Scripts { <partial name="_ValidationScriptsPartial" /> }
+
+@section Scripts {
+    <partial name="_ValidationScriptsPartial" />
+}

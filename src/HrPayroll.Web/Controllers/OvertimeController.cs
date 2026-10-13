@@ -1,121 +1,175 @@
-using HrPayroll.Domain.Entities;
 using HrPayroll.Domain.Enums;
+using HrPayroll.Infrastructure.Import;
 using HrPayroll.Infrastructure.Persistence;
 using HrPayroll.Infrastructure.Services;
+using HrPayroll.Web.ViewModels;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
-using Microsoft.AspNetCore.Mvc.Rendering;
 using Microsoft.EntityFrameworkCore;
 
 namespace HrPayroll.Web.Controllers;
 
+/// <summary>
+/// شاشة اعتماد الإضافي: تعرض الموظف والتاريخ والوردية ونهاية الوردية والخروج الفعلي
+/// والإضافي الخام والمعتمد وسعر الساعة والمبلغ المحسوب — ثم تسمح بالاعتماد أو الرفض.
+/// </summary>
 [Authorize(Policy = "ManagePayroll")]
 public class OvertimeController : Controller
 {
     private readonly AppDbContext _db;
+    private readonly ReportService _reports;
+    private readonly SettingsService _settings;
     private readonly AuditService _audit;
+    private readonly ExcelExportService _excel;
 
-    public OvertimeController(AppDbContext db, AuditService audit)
+    public OvertimeController(AppDbContext db, ReportService reports, SettingsService settings,
+        AuditService audit, ExcelExportService excel)
     {
         _db = db;
+        _reports = reports;
+        _settings = settings;
         _audit = audit;
+        _excel = excel;
     }
 
-    public async Task<IActionResult> Index(int? year, int? month, CancellationToken ct)
+    private AttendanceReportFilter BuildFilter(DateTime? from, DateTime? to, string? department, int? employeeId, int? shiftId)
     {
-        var y = year ?? DateTime.Today.Year;
-        var m = month ?? DateTime.Today.Month;
-        var first = new DateTime(y, m, 1);
-        var last = first.AddMonths(1).AddDays(-1);
-        ViewBag.Year = y; ViewBag.Month = m; ViewBag.First = first; ViewBag.Last = last;
-
-        var list = await _db.OvertimeApprovals.Include(o => o.Employee)
-            .Where(o => o.PeriodStart >= first && o.PeriodEnd <= last)
-            .OrderByDescending(o => o.PeriodStart).ToListAsync(ct);
-        return View(list);
+        var f = (from ?? new DateTime(DateTime.Today.Year, DateTime.Today.Month, 1)).Date;
+        var t = (to ?? DateTime.Today).Date;
+        if (t < f) (f, t) = (t, f);
+        return new AttendanceReportFilter { From = f, To = t, Department = department, EmployeeId = employeeId, ShiftId = shiftId };
     }
 
-    /// <summary>توليد اعتمادات إضافي من الحضور المحسوب لفترة محددة.</summary>
+    public async Task<IActionResult> Index(DateTime? from, DateTime? to, string? department, int? employeeId,
+        int? shiftId, bool onlyWithOvertime = true, CancellationToken ct = default)
+    {
+        var filter = BuildFilter(from, to, department, employeeId, shiftId);
+        var policy = await _settings.GetPolicyAsync(ct);
+
+        var employees = await _db.Employees.AsNoTracking()
+            .Where(e => e.IsActive).OrderBy(e => e.FullName).ToListAsync(ct);
+
+        var rates = employees.ToDictionary(
+            e => e.Id,
+            e => policy.HourlyRateOfSalary(e.BasicSalary, e.DailyRate));
+
+        return View(new OvertimeIndexViewModel
+        {
+            Filter = filter,
+            Rows = await _reports.GetOvertimeAsync(filter, onlyWithOvertime, ct),
+            Departments = await _db.Departments.AsNoTracking().OrderBy(d => d.Name).ToListAsync(ct),
+            Shifts = await _db.Shifts.AsNoTracking().OrderBy(s => s.ShiftNumber).ToListAsync(ct),
+            Employees = employees,
+            HourlyRates = rates
+        });
+    }
+
+    /// <summary>اعتماد أو تعديل دقائق الإضافي ليوم واحد.</summary>
     [HttpPost]
     [ValidateAntiForgeryToken]
-    public async Task<IActionResult> Generate(DateTime from, DateTime to, CancellationToken ct)
+    public async Task<IActionResult> ApproveDay(int employeeId, string workDate, int approvedMinutes,
+        string? returnUrl, CancellationToken ct)
     {
-        var computed = await _db.DailyAttendances.AsNoTracking()
-            .Where(d => d.WorkDate >= from.Date && d.WorkDate <= to.Date && d.CalculatedOvertimeMinutes > 0)
-            .GroupBy(d => d.EmployeeId)
-            .Select(g => new { EmployeeId = g.Key, Minutes = g.Sum(x => x.CalculatedOvertimeMinutes) })
+        if (!DateTime.TryParse(workDate, out var date))
+        {
+            TempData["Error"] = "تاريخ غير صالح";
+            return Redirect(returnUrl ?? Url.Action(nameof(Index))!);
+        }
+
+        var daily = await _db.DailyAttendances
+            .FirstOrDefaultAsync(d => d.EmployeeId == employeeId && d.WorkDate == date.Date, ct);
+        if (daily is null)
+        {
+            TempData["Error"] = "لا يوجد سجل حضور لهذا اليوم";
+            return Redirect(returnUrl ?? Url.Action(nameof(Index))!);
+        }
+
+        if (await IsPeriodLockedAsync(date, ct))
+        {
+            TempData["Error"] = $"فترة {date:yyyy-MM} مقفلة براتب معتمد. أعد فتح الكشف أولًا.";
+            return Redirect(returnUrl ?? Url.Action(nameof(Index))!);
+        }
+
+        approvedMinutes = Math.Max(0, approvedMinutes);
+        if (approvedMinutes > daily.RawOvertimeMinutes && daily.RawOvertimeMinutes > 0)
+            approvedMinutes = daily.RawOvertimeMinutes;
+
+        var employee = await _db.Employees.FirstOrDefaultAsync(e => e.Id == employeeId, ct);
+        var policy = await _settings.GetPolicyAsync(ct);
+        var hourlyRate = employee is null ? 0m : policy.HourlyRateOfSalary(employee.BasicSalary, employee.DailyRate);
+        var amount = Math.Round(approvedMinutes / 60m * hourlyRate, 2);
+
+        var old = daily.ApprovedOvertimeMinutes.ToString();
+        daily.ApprovedOvertimeMinutes = approvedMinutes;
+        daily.PaidOvertimeMinutes = policy.RoundOvertimeMinutes(approvedMinutes);
+        daily.UpdatedAt = DateTime.UtcNow;
+        daily.UpdatedBy = this.CurrentUserName();
+
+        await _audit.LogAsync(approvedMinutes > 0 ? "اعتماد إضافي" : "إلغاء اعتماد إضافي",
+            nameof(Domain.Entities.DailyAttendance), daily.Id.ToString(), old, approvedMinutes.ToString(),
+            this.CurrentUserName(), this.CurrentUserId(), ct);
+        await _db.SaveChangesAsync(ct);
+
+        TempData["Success"] = approvedMinutes > 0
+            ? $"تم اعتماد {approvedMinutes} دقيقة إضافي بمبلغ تقديري {amount:N2}."
+            : "تم إلغاء اعتماد الإضافي لهذا اليوم.";
+        return Redirect(returnUrl ?? Url.Action(nameof(Index))!);
+    }
+
+    [HttpPost]
+    [ValidateAntiForgeryToken]
+    public async Task<IActionResult> ApproveAll(DateTime? from, DateTime? to, string? department, int? employeeId,
+        int? shiftId, string? returnUrl, CancellationToken ct)
+    {
+        var filter = BuildFilter(from, to, department, employeeId, shiftId);
+        var rows = await _db.DailyAttendances
+            .Where(d => d.WorkDate >= filter.From && d.WorkDate <= filter.To && d.RawOvertimeMinutes > 0
+                        && d.ApprovedOvertimeMinutes == 0)
+            .Where(d => !filter.EmployeeId.HasValue || d.EmployeeId == filter.EmployeeId.Value)
+            .Where(d => string.IsNullOrEmpty(filter.Department) || d.Employee!.Department == filter.Department)
             .ToListAsync(ct);
 
-        var created = 0;
-        foreach (var c in computed)
-        {
-            var exists = await _db.OvertimeApprovals.AnyAsync(o => o.EmployeeId == c.EmployeeId
-                && o.PeriodStart == from.Date && o.PeriodEnd == to.Date, ct);
-            if (exists) continue;
+        var lockedMonths = await _db.PayrollRuns.AsNoTracking()
+            .Where(r => r.Status == PayrollStatus.Locked || r.Status == PayrollStatus.Approved)
+            .Select(r => new { r.Year, r.Month }).ToListAsync(ct);
+        var lockedSet = lockedMonths.Select(x => (x.Year, x.Month)).ToHashSet();
 
-            var hours = Math.Round(c.Minutes / 60m, 2, MidpointRounding.AwayFromZero);
-            _db.OvertimeApprovals.Add(new OvertimeApproval
-            {
-                EmployeeId = c.EmployeeId,
-                PeriodStart = from.Date,
-                PeriodEnd = to.Date,
-                CalculatedHours = hours,
-                ApprovedHours = 0m, // لا يُعتمد تلقائيًا
-                OvertimeMultiplier = 1m,
-                Status = ApprovalStatus.Pending,
-                CreatedBy = User.Identity?.Name
-            });
-            created++;
+        var skipped = 0;
+        foreach (var d in rows)
+        {
+            if (lockedSet.Contains((d.WorkDate.Year, d.WorkDate.Month))) { skipped++; continue; }
+            d.ApprovedOvertimeMinutes = d.RawOvertimeMinutes;
+            d.PaidOvertimeMinutes = d.RawOvertimeMinutes;
+            d.UpdatedAt = DateTime.UtcNow;
+            d.UpdatedBy = this.CurrentUserName();
         }
+
+        await _audit.LogAsync("اعتماد إضافي جماعي", nameof(Domain.Entities.DailyAttendance), null, null,
+            $"اعتماد {rows.Count - skipped} يوم" + (skipped > 0 ? $" (تم تجاوز {skipped} يوم في فترات مقفلة)" : string.Empty),
+            this.CurrentUserName(), this.CurrentUserId(), ct);
         await _db.SaveChangesAsync(ct);
-        TempData["Success"] = $"تم إنشاء {created} سجل إضافي بحاجة لاعتماد";
-        return RedirectToAction(nameof(Index), new { year = from.Year, month = from.Month });
+
+        TempData["Success"] = $"تم اعتماد الإضافي الخام لـ {rows.Count - skipped} يوم.";
+        if (skipped > 0) TempData["Warning"] = $"تم تجاوز {skipped} يوم لأن فترة رواتبها مقفلة.";
+        return Redirect(returnUrl ?? Url.Action(nameof(Index))!);
     }
 
     [HttpPost]
     [ValidateAntiForgeryToken]
-    public async Task<IActionResult> Approve(int id, decimal approvedHours, CancellationToken ct)
-    {
-        var ot = await _db.OvertimeApprovals.FindAsync(new object?[] { id }, ct);
-        if (ot is null) return NotFound();
-        if (ot.PayrollItemId.HasValue)
-        {
-            TempData["Error"] = "لا يمكن تعديل إضافي تم إدراجه في كشف رواتب";
-            return RedirectToAction(nameof(Index));
-        }
-        if (approvedHours < 0) approvedHours = 0;
-        if (approvedHours > ot.CalculatedHours)
-            TempData["Warning"] = "الساعات المعتمدة تتجاوز المحسوبة، سيتم تسجيلها كما أدخلتها مع بقاء المحسوب للمراجعة.";
+    public async Task<IActionResult> RejectDay(int employeeId, string workDate, string? returnUrl, CancellationToken ct)
+        => await ApproveDay(employeeId, workDate, 0, returnUrl, ct);
 
-        var old = $"{ot.CalculatedHours}/{ot.ApprovedHours}";
-        ot.ApprovedHours = approvedHours;
-        ot.Status = ApprovalStatus.Approved;
-        ot.ApprovedBy = User.Identity?.Name;
-        ot.ApprovedAt = DateTime.UtcNow;
-        await _db.SaveChangesAsync(ct);
-        _audit.Log("اعتماد إضافي", nameof(OvertimeApproval), ot.Id.ToString(), old, $"{ot.CalculatedHours}/{ot.ApprovedHours}", User.Identity?.Name);
-        await _db.SaveChangesAsync(ct);
-        TempData["Success"] = "تم اعتماد الإضافي";
-        return RedirectToAction(nameof(Index), new { year = ot.PeriodStart.Year, month = ot.PeriodStart.Month });
+    public async Task<IActionResult> Export(DateTime? from, DateTime? to, string? department, int? employeeId,
+        int? shiftId, CancellationToken ct)
+    {
+        var filter = BuildFilter(from, to, department, employeeId, shiftId);
+        var bytes = await _excel.ExportOvertimeAsync(filter, ct);
+        return File(bytes, "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+            $"Overtime_{filter.From:yyyyMMdd}_{filter.To:yyyyMMdd}.xlsx");
     }
 
-    [HttpPost]
-    [ValidateAntiForgeryToken]
-    public async Task<IActionResult> Reject(int id, CancellationToken ct)
-    {
-        var ot = await _db.OvertimeApprovals.FindAsync(new object?[] { id }, ct);
-        if (ot is null) return NotFound();
-        if (ot.PayrollItemId.HasValue)
-        {
-            TempData["Error"] = "لا يمكن تعديل إضافي مدرج في كشف";
-            return RedirectToAction(nameof(Index));
-        }
-        ot.ApprovedHours = 0;
-        ot.Status = ApprovalStatus.Rejected;
-        ot.ApprovedBy = User.Identity?.Name;
-        ot.ApprovedAt = DateTime.UtcNow;
-        await _db.SaveChangesAsync(ct);
-        TempData["Success"] = "تم رفض الإضافي";
-        return RedirectToAction(nameof(Index), new { year = ot.PeriodStart.Year, month = ot.PeriodStart.Month });
-    }
+    private async Task<bool> IsPeriodLockedAsync(DateTime date, CancellationToken ct)
+        => await _db.PayrollRuns.AsNoTracking().AnyAsync(
+            r => r.Year == date.Year && r.Month == date.Month
+                 && (r.Status == PayrollStatus.Locked || r.Status == PayrollStatus.Approved), ct);
 }

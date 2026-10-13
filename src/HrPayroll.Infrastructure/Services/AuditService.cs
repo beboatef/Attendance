@@ -29,6 +29,15 @@ public class AuditService
         });
     }
 
+    /// <summary>يضيف السجل دون حفظ (يُحفظ مع SaveChangesAsync التالي).</summary>
+    public Task LogAsync(string action, string? entityName = null, string? entityId = null,
+        string? oldValue = null, string? newValue = null, string? user = null, string? userId = null,
+        CancellationToken ct = default)
+    {
+        Log(action, entityName, entityId, oldValue, newValue, user, userId);
+        return Task.CompletedTask;
+    }
+
     public async Task LogAndSaveAsync(string action, string? entityName = null, string? entityId = null,
         string? oldValue = null, string? newValue = null, string? user = null, string? userId = null, CancellationToken ct = default)
     {

@@ -12,6 +12,7 @@ namespace HrPayroll.Domain.Services;
 /// - إذا أرسل الجهاز نوع حركة صريحًا (I/O, IN/OUT, دخول/خروج) يُستخدم بعد التحقق من معناه.
 /// - إذا أرسل الجهاز نوع بصمة محايدًا مثل FP فلا يُفترض أن نوع البصمة يحدد الاتجاه.
 /// - في هذه الحالة يُعتمد على الوردية وتوقيت العمل وتسلسل البصمات، وتُعلَّم الحالات الغامضة للمراجعة.
+/// - بصمة دخول أو خروج مفقودة لا تُعتبر غيابًا مؤكدًا ولا إضافيًا معتمدًا.
 /// </summary>
 public static class PunchClassifier
 {
@@ -21,7 +22,7 @@ public static class PunchClassifier
     private static readonly string[] ExplicitOutValues =
         { "o", "out", "1", "checkout", "check-out", "exit", "خروج", "انصراف" };
 
-    /// <summary>يحاول تحويل نوع الحركة القادم من الجهاز إلى اتجاه صريح، أو null إذا كان محايدًا.</summary>
+    /// <summary>يحاول تحويل نوع الحركة القادم من الجهاز إلى اتجاه صريح، أو Unknown إذا كان محايدًا.</summary>
     public static PunchDirection ParseExplicitDirection(string? attType)
     {
         if (string.IsNullOrWhiteSpace(attType)) return PunchDirection.Unknown;
@@ -35,9 +36,7 @@ public static class PunchClassifier
         return PunchDirection.Unknown;
     }
 
-    /// <summary>
-    /// يصنّف بصمات موظف في يوم عمل محدد حسب ورديته.
-    /// </summary>
+    /// <summary>يصنّف بصمات موظف في يوم عمل محدد حسب ورديته.</summary>
     public static DayClassificationResult Classify(
         IReadOnlyList<RawPunchInput> punches,
         Shift shift,
@@ -45,6 +44,8 @@ public static class PunchClassifier
         AttendancePolicy policy)
     {
         var window = ShiftWindowResolver.Resolve(shift, workDate);
+        var entryGrace = Math.Max(0, shift.EntryGraceMinutes);
+        var exitGrace = Math.Max(0, shift.ExitGraceMinutes);
 
         // إزالة البصمات المكررة (نفس الوقت) وترتيبها زمنيًا
         var relevant = punches
@@ -75,16 +76,18 @@ public static class PunchClassifier
 
         if (withExplicit.Any(x => x.Dir == PunchDirection.In) && withExplicit.Any(x => x.Dir == PunchDirection.Out))
         {
-            return BuildFromExplicit(withExplicit.Select(x => (x.Punch, x.Dir)).ToList(), window, workDate, policy, shift.GraceMinutes);
+            return BuildFromExplicit(
+                withExplicit.Select(x => (x.Punch, x.Dir)).ToList(),
+                window, workDate, policy, entryGrace, exitGrace);
         }
 
         // 2) التصنيف بالقواعد اعتمادًا على الوردية وتسلسل البصمات
-        return BuildFromRules(relevant, window, workDate, policy, shift.GraceMinutes);
+        return BuildFromRules(relevant, window, workDate, policy, entryGrace, exitGrace);
     }
 
     private static DayClassificationResult BuildFromExplicit(
         List<(RawPunchInput Punch, PunchDirection Dir)> items,
-        ShiftWindow window, DateTime workDate, AttendancePolicy policy, int graceMinutes)
+        ShiftWindow window, DateTime workDate, AttendancePolicy policy, int entryGrace, int exitGrace)
     {
         var events = new List<ClassifiedEvent>();
         DateTime? entry = null, exit = null;
@@ -113,11 +116,12 @@ public static class PunchClassifier
         }
 
         return Finalize(workDate, window, policy, events, entry, exit, entryId, exitId, review,
-            "تصنيف حسب نوع الحركة الصريح من الجهاز", graceMinutes);
+            "تصنيف حسب نوع الحركة الصريح من الجهاز", entryGrace, exitGrace);
     }
 
     private static DayClassificationResult BuildFromRules(
-        List<RawPunchInput> punches, ShiftWindow window, DateTime workDate, AttendancePolicy policy, int graceMinutes)
+        List<RawPunchInput> punches, ShiftWindow window, DateTime workDate,
+        AttendancePolicy policy, int entryGrace, int exitGrace)
     {
         var events = new List<ClassifiedEvent>();
         var entryZoneEnd = window.Start.AddMinutes(window.DurationMinutes * policy.EntryZoneRatio);
@@ -182,7 +186,7 @@ public static class PunchClassifier
                     events.Add(new ClassifiedEvent(mid, AttendanceEventType.Unknown, ClassificationStatus.NeedsReview,
                         ClassificationSource.Rule, 0.2m, "بصمة غير مصنفة"));
                 review = true;
-                reason = "بصمة خروج مفقودة";
+                reason = "بصمة خروج مفقودة: تحتاج مراجعة ولا تُعتبر غيابًا ولا إضافيًا معتمدًا";
             }
             else if (!firstIsEntry && lastIsExit)
             {
@@ -193,7 +197,7 @@ public static class PunchClassifier
                     events.Add(new ClassifiedEvent(mid, AttendanceEventType.Unknown, ClassificationStatus.NeedsReview,
                         ClassificationSource.Rule, 0.2m, "بصمة غير مصنفة"));
                 review = true;
-                reason = "بصمة دخول مفقودة";
+                reason = "بصمة دخول مفقودة: تحتاج مراجعة ولا تُعتبر غيابًا";
             }
             else
             {
@@ -205,21 +209,27 @@ public static class PunchClassifier
             }
         }
 
-        var reasonText = reason;
-        return Finalize(workDate, window, policy, events, entry, exit, entryId, exitId, review, reasonText, graceMinutes);
+        return Finalize(workDate, window, policy, events, entry, exit, entryId, exitId, review, reason,
+            entryGrace, exitGrace);
     }
 
     private static DayClassificationResult Finalize(
         DateTime workDate, ShiftWindow window, AttendancePolicy policy,
         List<ClassifiedEvent> events, DateTime? entry, DateTime? exit,
-        int? entryId, int? exitId, bool review, string? reason, int graceMinutes)
+        int? entryId, int? exitId, bool review, string? reason, int entryGrace, int exitGrace)
     {
-        var late = AttendanceCalculator.CalculateLateMinutes(window, graceMinutes, entry); // grace يُمرَّر لاحقًا من الإعدادات
+        var late = AttendanceCalculator.CalculateLateMinutes(window, entryGrace, entry);
         var early = AttendanceCalculator.CalculateEarlyLeaveMinutes(window, exit);
-        var overtime = AttendanceCalculator.CalculateOvertimeMinutes(window, exit, policy.MinimumOvertimeMinutes);
+        var overtime = AttendanceCalculator.CalculateOvertimeMinutes(
+            window, exitGrace, exit, policy.MinimumOvertimeMinutes);
 
         AttendanceStatus status;
-        if (entry is not null && exit is not null) status = AttendanceStatus.Present;
+        if (entry is not null && exit is not null)
+        {
+            if (late > 0) status = AttendanceStatus.Late;
+            else if (early > 0) status = AttendanceStatus.EarlyDeparture;
+            else status = AttendanceStatus.Present;
+        }
         else if (entry is not null) status = AttendanceStatus.MissingCheckOut;
         else if (exit is not null) status = AttendanceStatus.MissingCheckIn;
         else status = AttendanceStatus.NeedsReview;

@@ -1,4 +1,5 @@
 using System.Globalization;
+using Microsoft.AspNetCore.Localization;
 using HrPayroll.Domain.Entities;
 using HrPayroll.Infrastructure.Import;
 using HrPayroll.Infrastructure.Persistence;
@@ -55,6 +56,12 @@ builder.Services.AddAuthorization(options =>
 
 // خدمات التطبيق
 builder.Services.AddScoped<AttendanceImportService>();
+builder.Services.AddScoped<EmployeeImportService>();
+builder.Services.AddScoped<ShiftService>();
+builder.Services.AddScoped<LeaveService>();
+builder.Services.AddScoped<AttendanceCorrectionService>();
+builder.Services.AddScoped<ReportService>();
+builder.Services.AddScoped<PdfExportService>();
 builder.Services.AddScoped<SettingsService>();
 builder.Services.AddScoped<AuditService>();
 builder.Services.AddScoped<ShiftResolver>();
@@ -68,10 +75,27 @@ builder.Services.AddRazorPages();
 
 var app = builder.Build();
 
-// اللغة والثقافة الافتراضية (عربي)
-var culture = new CultureInfo("ar-SA");
+// اللغة والثقافة الافتراضية: عربي مع تقويم ميلادي وأرقام لاتينية.
+// لا تُستخدم ar-SA هنا لأنها تعتمد تقويم أم القرى (هجري): التواريخ كانت تُعرض
+// وتُقرأ بصيغة هجرية (مثل 1447-07-16) فتنكسر حقول التاريخ وفلاتر التقارير.
+var culture = (CultureInfo)CultureInfo.GetCultureInfo("ar-EG").Clone();
+culture.DateTimeFormat.Calendar = new GregorianCalendar();
+culture.NumberFormat.DigitSubstitution = DigitShapes.None;
+culture.NumberFormat.NumberDecimalSeparator = ".";
+culture.NumberFormat.CurrencyDecimalSeparator = ".";
+culture.NumberFormat.NumberGroupSeparator = ",";
+culture.NumberFormat.CurrencyGroupSeparator = ",";
 CultureInfo.DefaultThreadCurrentCulture = culture;
 CultureInfo.DefaultThreadCurrentUICulture = culture;
+
+// تثبيت الثقافة على كل طلب حتى تكون قراءة/كتابة التواريخ والأرقام في النماذج
+// والروابط موحّدة ولا تعتمد على حالة الخيط (Thread) الحالي.
+app.UseRequestLocalization(new RequestLocalizationOptions
+{
+    DefaultRequestCulture = new RequestCulture(culture),
+    SupportedCultures = new[] { culture },
+    SupportedUICultures = new[] { culture }
+});
 
 if (!app.Environment.IsDevelopment())
 {

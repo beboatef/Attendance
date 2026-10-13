@@ -1,0 +1,35 @@
+@model HrPayroll.Web.ViewModels.EmployeeIndexViewModel
+@{
+    var current = Model.Page;
+    var total = Model.TotalPages;
+    if (total <= 1) { return; }
+    var start = Math.Max(1, current - 3);
+    var end = Math.Min(total, current + 3);
+}
+<div class="pager">
+    @if (current > 1)
+    {
+        <a asp-action="Index" asp-route-page="@(current - 1)" asp-route-search="@Model.Search"
+           asp-route-department="@Model.DepartmentFilter" asp-route-shiftId="@Model.ShiftId"
+           asp-route-isActive="@Model.IsActive">السابق</a>
+    }
+    @for (var p = start; p <= end; p++)
+    {
+        if (p == current)
+        {
+            <span class="current">@p</span>
+        }
+        else
+        {
+            <a asp-action="Index" asp-route-page="@p" asp-route-search="@Model.Search"
+               asp-route-department="@Model.DepartmentFilter" asp-route-shiftId="@Model.ShiftId"
+               asp-route-isActive="@Model.IsActive">@p</a>
+        }
+    }
+    @if (current < total)
+    {
+        <a asp-action="Index" asp-route-page="@(current + 1)" asp-route-search="@Model.Search"
+           asp-route-department="@Model.DepartmentFilter" asp-route-shiftId="@Model.ShiftId"
+           asp-route-isActive="@Model.IsActive">التالي</a>
+    }
+</div>

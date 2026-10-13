@@ -70,9 +70,14 @@ public class PayrollRunConfiguration : IEntityTypeConfiguration<PayrollRun>
         b.Property(x => x.TotalNet).HasColumnType("decimal(18,2)");
         b.Property(x => x.TotalOvertime).HasColumnType("decimal(18,2)");
         b.Property(x => x.TotalDeductions).HasColumnType("decimal(18,2)");
+        b.Property(x => x.TotalGross).HasColumnType("decimal(18,2)");
+        b.Property(x => x.TotalBonuses).HasColumnType("decimal(18,2)");
         b.Property(x => x.Notes).HasMaxLength(1000);
         b.Property(x => x.ComputedBy).HasMaxLength(200);
         b.Property(x => x.ApprovedBy).HasMaxLength(200);
+        b.Property(x => x.LockedBy).HasMaxLength(200);
+        b.Property(x => x.ReopenedBy).HasMaxLength(200);
+        b.Property(x => x.ReopenReason).HasMaxLength(1000);
 
         b.HasIndex(x => new { x.Year, x.Month, x.Version }).IsUnique();
     }
@@ -85,17 +90,37 @@ public class PayrollItemConfiguration : IEntityTypeConfiguration<PayrollItem>
         b.ToTable("PayrollItems");
         b.Property(x => x.EmployeeCode).IsRequired().HasMaxLength(50);
         b.Property(x => x.EmployeeName).IsRequired().HasMaxLength(200);
+        b.Property(x => x.DepartmentName).HasMaxLength(150);
+        b.Property(x => x.JobTitleName).HasMaxLength(150);
         b.Property(x => x.BasicSalary).HasColumnType("decimal(18,2)");
+        b.Property(x => x.DailyRate).HasColumnType("decimal(18,4)");
+        b.Property(x => x.HourlyRate).HasColumnType("decimal(18,4)");
         b.Property(x => x.MinuteRate).HasColumnType("decimal(18,8)");
+        b.Property(x => x.PaidLeaveDays).HasColumnType("decimal(6,2)");
+        b.Property(x => x.UnpaidLeaveDays).HasColumnType("decimal(6,2)");
+        b.Property(x => x.AbsenceDays).HasColumnType("decimal(6,2)");
         b.Property(x => x.LateDeduction).HasColumnType("decimal(18,2)");
+        b.Property(x => x.AbsenceDeduction).HasColumnType("decimal(18,2)");
+        b.Property(x => x.UnpaidLeaveDeduction).HasColumnType("decimal(18,2)");
+        b.Property(x => x.RawOvertimeHours).HasColumnType("decimal(18,2)");
         b.Property(x => x.ApprovedOvertimeHours).HasColumnType("decimal(18,2)");
+        b.Property(x => x.PaidOvertimeHours).HasColumnType("decimal(18,2)");
         b.Property(x => x.OvertimeMultiplier).HasColumnType("decimal(18,4)");
-        b.Property(x => x.OvertimeValue).HasColumnType("decimal(18,2)");
+        b.Property(x => x.OvertimeAmount).HasColumnType("decimal(18,2)").HasColumnName("OvertimeValue");
         b.Property(x => x.LoansTotal).HasColumnType("decimal(18,2)");
         b.Property(x => x.DeductionsTotal).HasColumnType("decimal(18,2)");
         b.Property(x => x.OtherDeductions).HasColumnType("decimal(18,2)");
+        b.Property(x => x.Bonuses).HasColumnType("decimal(18,2)");
+        b.Property(x => x.Allowances).HasColumnType("decimal(18,2)");
+        b.Property(x => x.AdditionalDaysCount).HasColumnType("decimal(6,2)");
+        b.Property(x => x.AdditionalDaysAmount).HasColumnType("decimal(18,2)");
+        b.Property(x => x.GrossEarnings).HasColumnType("decimal(18,2)");
+        b.Property(x => x.TotalDeductions).HasColumnType("decimal(18,2)");
         b.Property(x => x.GrossSalary).HasColumnType("decimal(18,2)");
         b.Property(x => x.NetSalary).HasColumnType("decimal(18,2)");
+        // يبقى بلا نوع أعمدة صريح: SQL Server يحوّله إلى nvarchar(max) تلقائيًا،
+        // بينما SQLite (المستخدم في الاختبارات) لا يقبل الصيغة nvarchar(max).
+        b.Property(x => x.CalculationDetails);
         b.Property(x => x.Notes).HasMaxLength(1000);
 
         b.HasOne(x => x.PayrollRun).WithMany(r => r.Items)
@@ -151,5 +176,27 @@ public class AppSettingConfiguration : IEntityTypeConfiguration<AppSetting>
         b.Property(x => x.Group).HasMaxLength(100);
         b.Property(x => x.DataType).HasMaxLength(20);
         b.HasIndex(x => x.Key).IsUnique();
+    }
+}
+
+public class PayrollAdjustmentConfiguration : IEntityTypeConfiguration<PayrollAdjustment>
+{
+    public void Configure(EntityTypeBuilder<PayrollAdjustment> b)
+    {
+        b.ToTable("PayrollAdjustments");
+        b.Property(x => x.Description).IsRequired().HasMaxLength(500);
+        b.Property(x => x.Amount).HasColumnType("decimal(18,2)");
+        b.Property(x => x.Days).HasColumnType("decimal(6,2)");
+        b.Property(x => x.DailyRateOverride).HasColumnType("decimal(18,4)");
+        b.Property(x => x.ApprovedBy).HasMaxLength(200);
+        b.Property(x => x.ReferenceDate).HasColumnType("datetime2");
+
+        b.HasOne(x => x.Employee).WithMany(e => e.Adjustments)
+            .HasForeignKey(x => x.EmployeeId).OnDelete(DeleteBehavior.Cascade);
+        b.HasOne(x => x.PayrollItem).WithMany(p => p.Adjustments)
+            .HasForeignKey(x => x.PayrollItemId).OnDelete(DeleteBehavior.Restrict);
+
+        b.HasIndex(x => new { x.EmployeeId, x.Year, x.Month });
+        b.HasIndex(x => x.PayrollItemId);
     }
 }

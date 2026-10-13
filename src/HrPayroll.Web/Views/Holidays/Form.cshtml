@@ -1,0 +1,60 @@
+@model HrPayroll.Web.ViewModels.HolidayFormViewModel
+@{
+    var isEdit = Model.Id > 0;
+    ViewData["Title"] = isEdit ? "تعديل عطلة رسمية" : "إضافة عطلة رسمية";
+}
+<div class="card">
+    <div class="card-head">
+        <h2>@ViewData["Title"]</h2>
+        <a class="btn btn-ghost btn-sm" asp-action="Index">رجوع</a>
+    </div>
+    <div class="card-body">
+        <form method="post" asp-action="@(isEdit ? "Edit" : "Create")" asp-route-id="@(isEdit ? Model.Id : (int?)null)">
+            <input type="hidden" asp-for="Id" />
+            <div asp-validation-summary="ModelOnly" class="alert alert-danger" style="display:@(ViewData.ModelState.ErrorCount > 0 ? "flex" : "none")"></div>
+            <div class="form-grid">
+                <div class="field span-2">
+                    <label asp-for="Name">اسم العطلة</label>
+                    <input asp-for="Name" />
+                    <span asp-validation-for="Name" class="field-error"></span>
+                </div>
+                <div class="field">
+                    <label asp-for="HolidayDate">التاريخ</label>
+                    <input asp-for="HolidayDate" type="date" />
+                    <span asp-validation-for="HolidayDate" class="field-error"></span>
+                </div>
+                <div class="field">
+                    <label asp-for="IsPaid">مدفوعة الأجر</label>
+                    <select asp-for="IsPaid">
+                        <option value="true">نعم (مشمولة في الراتب الشهري)</option>
+                        <option value="false">لا</option>
+                    </select>
+                </div>
+                <div class="field">
+                    <label asp-for="AllowWorkWithExtraPay">العمل فيها يُصرف بسياسة منفصلة</label>
+                    <select asp-for="AllowWorkWithExtraPay">
+                        <option value="false">لا (تحتاج اعتمادًا صريحًا لاحقًا)</option>
+                        <option value="true">نعم</option>
+                    </select>
+                    <span class="hint">لا يُضاف أي مبلغ تلقائيًا؛ العمل في العطلة يُعلَّم للمراجعة.</span>
+                </div>
+                <div class="field">
+                    <label asp-for="IsActive">نشطة</label>
+                    <select asp-for="IsActive">
+                        <option value="true">نشطة</option>
+                        <option value="false">معطّلة</option>
+                    </select>
+                </div>
+                <div class="field span-2">
+                    <label asp-for="Notes">ملاحظات</label>
+                    <textarea asp-for="Notes" rows="2"></textarea>
+                </div>
+            </div>
+            <div class="btn-row" style="margin-top:18px">
+                <button type="submit" class="btn btn-primary btn-lg">حفظ</button>
+                <a class="btn btn-ghost btn-lg" asp-action="Index">إلغاء</a>
+            </div>
+        </form>
+    </div>
+</div>
+@section Scripts { <partial name="_ValidationScriptsPartial" /> }

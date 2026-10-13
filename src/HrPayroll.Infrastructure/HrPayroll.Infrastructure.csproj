@@ -15,7 +15,13 @@
     </PackageReference>
     <PackageReference Include="Microsoft.EntityFrameworkCore.Relational" Version="9.0.20" />
     <PackageReference Include="Microsoft.EntityFrameworkCore.SqlServer" Version="9.0.20" />
+    <PackageReference Include="QuestPDF" Version="2025.7.4" />
     <PackageReference Include="System.Text.Encoding.CodePages" Version="9.0.20" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <!-- خط عربي مضمّن لتوليد ملفات PDF (لا يحتاج أي تثبيت على الجهاز) -->
+    <None Include="Assets\Fonts\*.ttf" CopyToOutputDirectory="PreserveNewest" />
   </ItemGroup>
 
   <PropertyGroup>

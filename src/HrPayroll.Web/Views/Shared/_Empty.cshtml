@@ -1,0 +1,21 @@
+﻿@{
+    // لا يُعرَّف @model هنا عن قصد: هذا الجزء يُستدعى بدون تمرير نموذج،
+    // فتمرير نموذج الصفحة الأب تلقائيًا كان يؤدي إلى خطأ في نوع ViewData.
+    var message = ViewData["message"] as string ?? "لا توجد بيانات للعرض";
+    var hint = ViewData["hint"] as string;
+    var actionUrl = ViewData["actionUrl"] as string;
+    var actionText = ViewData["actionText"] as string;
+    var icon = ViewData["icon"] as string ?? "🗂️";
+}
+<div class="empty">
+    <div class="icon">@icon</div>
+    <h3>@message</h3>
+    @if (!string.IsNullOrWhiteSpace(hint))
+    {
+        <p>@hint</p>
+    }
+    @if (!string.IsNullOrWhiteSpace(actionUrl) && !string.IsNullOrWhiteSpace(actionText))
+    {
+        <a class="btn btn-primary" href="@actionUrl">@actionText</a>
+    }
+</div>

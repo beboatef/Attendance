@@ -9,6 +9,9 @@ public class AppDbContext : IdentityDbContext<ApplicationUser>
 {
     public AppDbContext(DbContextOptions<AppDbContext> options) : base(options) { }
 
+    public DbSet<Department> Departments => Set<Department>();
+    public DbSet<JobTitle> JobTitles => Set<JobTitle>();
+    public DbSet<PublicHoliday> PublicHolidays => Set<PublicHoliday>();
     public DbSet<Employee> Employees => Set<Employee>();
     public DbSet<Shift> Shifts => Set<Shift>();
     public DbSet<EmployeeShiftAssignment> EmployeeShiftAssignments => Set<EmployeeShiftAssignment>();
@@ -23,11 +26,22 @@ public class AppDbContext : IdentityDbContext<ApplicationUser>
     public DbSet<PayrollItem> PayrollItems => Set<PayrollItem>();
     public DbSet<ImportBatch> ImportBatches => Set<ImportBatch>();
     public DbSet<AuditLog> AuditLogs => Set<AuditLog>();
+    public DbSet<PayrollAdjustment> PayrollAdjustments => Set<PayrollAdjustment>();
+    public DbSet<AttendanceCorrection> AttendanceCorrections => Set<AttendanceCorrection>();
     public DbSet<AppSetting> AppSettings => Set<AppSetting>();
 
     protected override void OnModelCreating(ModelBuilder builder)
     {
         base.OnModelCreating(builder);
         builder.ApplyConfigurationsFromAssembly(typeof(AppDbContext).Assembly);
+
+        // كود الجهاز/البصمة فريد لمنع ربط بصمة واحدة بموظفين مختلفين.
+        // على SQL Server نستخدم فهرسًا مُفلترًا لأن قيم NULL المتعددة مسموحة عند الفلترة،
+        // بينما SQLite يعتبر NULL مميزًا أصلًا في الفهرس الفريد.
+        var employee = builder.Entity<Employee>();
+        if (Database.IsSqlServer())
+            employee.HasIndex(e => e.DeviceEmployeeCode).IsUnique().HasFilter("[DeviceEmployeeCode] IS NOT NULL");
+        else
+            employee.HasIndex(e => e.DeviceEmployeeCode).IsUnique();
     }
 }

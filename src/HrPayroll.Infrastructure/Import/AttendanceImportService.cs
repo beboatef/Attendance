@@ -1,3 +1,4 @@
+using System.Globalization;
 using System.Security.Cryptography;
 using System.Text;
 using HrPayroll.Domain.Entities;
@@ -21,6 +22,9 @@ public sealed class ImportPreviewRow
     public string? Message { get; set; }
     public int? EmployeeId { get; set; }
     public string DedupHash { get; set; } = string.Empty;
+
+    /// <summary>هل هذه البصمة موجودة بالفعل في قاعدة البيانات (استُوردت سابقًا)؟</summary>
+    public bool AlreadyImported { get; set; }
 }
 
 public sealed class ImportAnalysisResult
@@ -38,6 +42,8 @@ public sealed class ImportAnalysisResult
     public int DuplicateCount => Rows.Count(r => r.Status == ImportRowStatus.Duplicate);
     public int InvalidCount => Rows.Count(r => r.Status == ImportRowStatus.InvalidDateTime || r.Status == ImportRowStatus.InvalidRow);
     public int UnknownEmployeeCount => Rows.Count(r => r.Status == ImportRowStatus.UnknownEmployee);
+    /// <summary>عدد البصمات المستوردة سابقًا في قاعدة البيانات (لن تُستورد مرتين).</summary>
+    public int AlreadyImportedCount => Rows.Count(r => r.AlreadyImported);
     public bool HasMapping => Mapping is not null && Mapping.IsUsable;
 }
 
@@ -61,9 +67,13 @@ public class AttendanceImportService
         _logger = logger;
     }
 
+    /// <summary>
+    /// بصمة إلغاء التكرار لبصمة واحدة. تُبنى دائمًا بثقافة ثابتة (InvariantCulture)
+    /// حتى لا تتغير قيمة الـ Hash بتغير ثقافة/تقويم الخادم (هجري/ميلادي).
+    /// </summary>
     public static string ComputeHash(string? deviceId, string code, DateTime time, string? attType)
     {
-        var raw = $"{deviceId?.Trim().ToUpperInvariant()}|{code.Trim().ToUpperInvariant()}|{time:yyyy-MM-dd HH:mm:ss}|{attType?.Trim().ToUpperInvariant()}";
+        var raw = $"{deviceId?.Trim().ToUpperInvariant()}|{code.Trim().ToUpperInvariant()}|{time.ToString("yyyy-MM-dd HH:mm:ss", CultureInfo.InvariantCulture)}|{attType?.Trim().ToUpperInvariant()}";
         var bytes = SHA256.HashData(Encoding.UTF8.GetBytes(raw));
         return Convert.ToHexString(bytes);
     }
@@ -188,18 +198,57 @@ public class AttendanceImportService
         }
 
         // كشف المكرر مقابل قاعدة البيانات (حتى بين ملفات مختلفة)
-        var existing = await GetExistingHashesAsync(parsedHashes, ct);
-        foreach (var item in result.Rows.Where(x => x.Status == ImportRowStatus.Success))
+        var candidates = result.Rows.Where(x => x.Status == ImportRowStatus.Success).ToList();
+        var (existing, existingKeys) = await GetExistingPunchIndexAsync(candidates, ct);
+        foreach (var item in candidates)
         {
-            if (existing.Contains(item.DedupHash))
+            var naturalKey = NaturalKey(item.DeviceEmployeeCode, item.PunchTime!.Value, item.AttType);
+            if (existing.Contains(item.DedupHash) || existingKeys.Contains(naturalKey))
             {
                 item.Status = ImportRowStatus.Duplicate;
+                item.AlreadyImported = true;
                 item.Message = "مستورد مسبقًا في قاعدة البيانات";
             }
         }
 
         result.Preview = result.Rows.Take(20).ToList();
         return result;
+    }
+
+    /// <summary>
+    /// المفتاح الطبيعي للبصمة: كود البصمة + وقت البصمة + نوع الحركة.
+    /// يُستخدم كحماية إضافية من التكرار لا تعتمد على صيغة الـ Hash وحدها.
+    /// </summary>
+    public static string NaturalKey(string? deviceEmployeeCode, DateTime punchTime, string? attType)
+        => $"{deviceEmployeeCode?.Trim().ToUpperInvariant()}|{punchTime.ToString("yyyy-MM-dd HH:mm:ss", CultureInfo.InvariantCulture)}|{attType?.Trim().ToUpperInvariant()}";
+
+    /// <summary>يجمع الـ Hash والمفاتيح الطبيعية للبصمات المطابقة الموجودة بالفعل في قاعدة البيانات.</summary>
+    private async Task<(HashSet<string> Hashes, HashSet<string> Keys)> GetExistingPunchIndexAsync(
+        IReadOnlyList<ImportPreviewRow> rows, CancellationToken ct)
+    {
+        var valid = rows.Where(r => r.PunchTime.HasValue && !string.IsNullOrWhiteSpace(r.DeviceEmployeeCode)).ToList();
+        var hashes = await GetExistingHashesAsync(
+            valid.Select(r => r.DedupHash).Where(h => !string.IsNullOrWhiteSpace(h)).Distinct().ToList(), ct);
+
+        var keys = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+        if (valid.Count == 0) return (hashes, keys);
+
+        var codes = valid.Select(r => r.DeviceEmployeeCode!.Trim()).Distinct(StringComparer.OrdinalIgnoreCase).ToList();
+        var min = valid.Min(r => r.PunchTime!.Value);
+        var max = valid.Max(r => r.PunchTime!.Value);
+
+        const int chunkSize = 200;
+        for (var i = 0; i < codes.Count; i += chunkSize)
+        {
+            var chunk = codes.Skip(i).Take(chunkSize).ToList();
+            var found = await _db.RawPunches
+                .Where(p => chunk.Contains(p.DeviceEmployeeCode) && p.PunchTime >= min && p.PunchTime <= max)
+                .Select(p => new { p.DeviceEmployeeCode, p.PunchTime, p.AttType })
+                .ToListAsync(ct);
+            foreach (var p in found) keys.Add(NaturalKey(p.DeviceEmployeeCode, p.PunchTime, p.AttType));
+        }
+
+        return (hashes, keys);
     }
 
     private async Task<HashSet<string>> GetExistingHashesAsync(List<string> hashes, CancellationToken ct)
@@ -224,6 +273,8 @@ public class AttendanceImportService
     {
         var commit = new ImportCommitResult();
         var rows = analysis.Rows.Where(r => r.Status == ImportRowStatus.Success && r.PunchTime.HasValue).ToList();
+        // الصفوف التي كشفها التحليل كمكررة (داخل الملف أو في قاعدة البيانات) تُحتسب "متجاهَلة لتكرارها"
+        commit.SkippedDuplicate = analysis.DuplicateCount;
 
         await using var tx = await _db.Database.BeginTransactionAsync(ct);
 
@@ -248,12 +299,12 @@ public class AttendanceImportService
         await _db.SaveChangesAsync(ct);
 
         // حماية إضافية من التكرار على مستوى قاعدة البيانات
-        var hashes = rows.Select(r => r.DedupHash).Distinct().ToList();
-        var existing = await GetExistingHashesAsync(hashes, ct);
+        var (existing, existingKeys) = await GetExistingPunchIndexAsync(rows, ct);
 
         foreach (var row in rows)
         {
-            if (existing.Contains(row.DedupHash))
+            var naturalKey = NaturalKey(row.DeviceEmployeeCode, row.PunchTime!.Value, row.AttType);
+            if (existing.Contains(row.DedupHash) || existingKeys.Contains(naturalKey))
             {
                 commit.SkippedDuplicate++;
                 continue;
@@ -276,11 +327,12 @@ public class AttendanceImportService
                 CreatedAt = DateTime.UtcNow
             });
             existing.Add(row.DedupHash);
+            existingKeys.Add(NaturalKey(row.DeviceEmployeeCode, row.PunchTime!.Value, row.AttType));
             commit.Inserted++;
         }
 
         batch.SuccessRows = commit.Inserted;
-        batch.DuplicateRows = analysis.DuplicateCount + commit.SkippedDuplicate;
+        batch.DuplicateRows = commit.SkippedDuplicate;
 
         await _db.SaveChangesAsync(ct);
         await tx.CommitAsync(ct);

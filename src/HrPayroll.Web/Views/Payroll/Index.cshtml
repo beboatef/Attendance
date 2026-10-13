@@ -1,45 +1,274 @@
-@model List<PayrollRun>
-@{ ViewData["Title"] = "كشوف الرواتب"; }
-<div class="card mb-3">
-    <div class="card-header fw-bold">توليد كشف رواتب شهري</div>
+@using HrPayroll.Domain.Enums
+@using HrPayroll.Infrastructure.Services
+@model HrPayroll.Web.ViewModels.PayrollIndexViewModel
+@{
+    ViewData["Title"] = "كشوف الرواتب";
+    var months = new[] { "يناير","فبراير","مارس","أبريل","مايو","يونيو","يوليو","أغسطس","سبتمبر","أكتوبر","نوفمبر","ديسمبر" };
+    var run = Model.CurrentRun;
+    var locked = run is not null && run.Status is PayrollStatus.Approved or PayrollStatus.Locked;
+    var badgeCls = run?.Status switch
+    {
+        PayrollStatus.Locked => "ok",
+        PayrollStatus.Approved => "ok",
+        PayrollStatus.PendingReview => "warn",
+        PayrollStatus.Reopened => "warn",
+        _ => "info"
+    };
+}
+<div class="card">
+    <div class="card-head">
+        <div>
+            <h2>كشف رواتب @months[Model.Month - 1] @Model.Year</h2>
+            <div class="sub">
+                @if (run is not null)
+                {
+                    <span>إصدار @run.Version — حالة الكشف: <span class="badge @badgeCls">@ExcelExportService.PayrollStatusText(run.Status)</span></span>
+                }
+                else
+                {
+                    <span>لم يُحتسب كشف لهذا الشهر بعد.</span>
+                }
+            </div>
+        </div>
+        <div class="btn-row">
+            <form method="get" class="btn-row">
+                <select name="month">
+                    @for (var m = 1; m <= 12; m++)
+                    {
+                        <option value="@m" selected="@(m == Model.Month)">@months[m - 1]</option>
+                    }
+                </select>
+                <input type="number" name="year" value="@Model.Year" style="width:100px" />
+                <button type="submit" class="btn btn-ghost btn-sm">عرض</button>
+            </form>
+            @if (run is not null)
+            {
+                <a class="btn btn-soft btn-sm" asp-action="ExportExcel" asp-route-id="@run.Id">تصدير Excel</a>
+                <a class="btn btn-soft btn-sm" asp-action="ExportPdf" asp-route-id="@run.Id">تصدير PDF</a>
+            }
+        </div>
+    </div>
     <div class="card-body">
-        <form asp-action="Generate" method="post" class="row g-2 align-items-end">
-            <div class="col-md-3"><label class="form-label">السنة</label><input type="number" name="year" value="@DateTime.Today.Year" class="form-control" /></div>
-            <div class="col-md-3"><label class="form-label">الشهر</label><input type="number" name="month" min="1" max="12" value="@DateTime.Today.Month" class="form-control" /></div>
-            <div class="col-md-3"><button class="btn btn-success">توليد الكشف</button></div>
-            <div class="col-md-3 text-muted small">لا يمكن إعادة احتساب كشف معتمد قبل إلغاء اعتماده.</div>
-        </form>
+        @if (Model.Readiness is not null)
+        {
+            <div class="section-title">جاهزية الفترة للاحتساب</div>
+            <div class="def-grid">
+                <div class="def"><div class="k">الموظفون النشطون</div><div class="v">@Model.Readiness.ActiveEmployees</div></div>
+                <div class="def"><div class="k">أيام بحاجة مراجعة</div><div class="v">@Model.Readiness.NeedsReviewCount</div></div>
+                <div class="def"><div class="k">أيام ببصمة ناقصة</div><div class="v">@Model.Readiness.IncompletePunchCount</div></div>
+                <div class="def"><div class="k">إجازات قيد الاعتماد</div><div class="v">@Model.Readiness.PendingLeaves</div></div>
+                <div class="def"><div class="k">تسويات قيد الاعتماد</div><div class="v">@Model.Readiness.PendingAdjustments</div></div>
+            </div>
+            @if (Model.Readiness.Warnings.Count > 0)
+            {
+                <div class="alert alert-warning" style="margin-top:12px">
+                    <span>@string.Join(" | ", Model.Readiness.Warnings)</span>
+                </div>
+            }
+        }
+
+        <div class="section-title">إجراءات دورة الرواتب</div>
+        <div class="btn-row">
+            @if (!locked)
+            {
+                <form method="post" asp-action="Generate" class="d-inline"
+                      data-confirm="احتساب/إعادة احتساب كشف @months[Model.Month - 1] @Model.Year؟ سيتم إنشاء إصدار جديد وأرشفة الكشف السابق غير المعتمد.">
+                    <input type="hidden" name="year" value="@Model.Year" />
+                    <input type="hidden" name="month" value="@Model.Month" />
+                    <button type="submit" class="btn btn-primary">@(run is null ? "احتساب الكشف" : "إعادة الاحتساب")</button>
+                </form>
+            }
+            @if (run is not null && run.Status == PayrollStatus.Computed)
+            {
+                <form method="post" asp-action="Review" class="d-inline">
+                    <input type="hidden" name="id" value="@run.Id" />
+                    <input type="hidden" name="year" value="@Model.Year" />
+                    <input type="hidden" name="month" value="@Model.Month" />
+                    <button type="submit" class="btn btn-soft">إرسال للمراجعة</button>
+                </form>
+            }
+            @if (run is not null && run.Status is PayrollStatus.Computed or PayrollStatus.PendingReview or PayrollStatus.Reopened)
+            {
+                <form method="post" asp-action="Approve" class="d-inline" data-confirm="اعتماد الكشف؟ سيصبح جاهزًا للقفل.">
+                    <input type="hidden" name="id" value="@run.Id" />
+                    <input type="hidden" name="year" value="@Model.Year" />
+                    <input type="hidden" name="month" value="@Model.Month" />
+                    <button type="submit" class="btn btn-accent">اعتماد</button>
+                </form>
+            }
+            @if (run is not null && run.Status == PayrollStatus.Approved)
+            {
+                <form method="post" asp-action="Lock" class="d-inline" data-confirm="قفل الكشف نهائيًا؟ لن يتأثر بأي استيراد بصمات لاحق بدون إعادة فتح بسبب مُسجَّل.">
+                    <input type="hidden" name="id" value="@run.Id" />
+                    <input type="hidden" name="year" value="@Model.Year" />
+                    <input type="hidden" name="month" value="@Model.Month" />
+                    <button type="submit" class="btn btn-primary">قفل الكشف</button>
+                </form>
+            }
+            @if (run is not null && run.Status is PayrollStatus.Approved or PayrollStatus.Locked)
+            {
+                <form method="post" asp-action="Reopen" class="btn-row"
+                      data-confirm="إعادة فتح الكشف للتصحيح؟ سيُسجَّل السبب في سجل المراجعة.">
+                    <input type="hidden" name="id" value="@run.Id" />
+                    <input type="hidden" name="year" value="@Model.Year" />
+                    <input type="hidden" name="month" value="@Model.Month" />
+                    <input type="text" name="reason" placeholder="سبب إعادة الفتح (مطلوب)" required style="min-width:280px" />
+                    <button type="submit" class="btn btn-warn">إعادة فتح</button>
+                </form>
+            }
+            @if (run is not null && run.Status != PayrollStatus.Locked)
+            {
+                <form method="post" asp-action="Cancel" class="d-inline" data-confirm="إلغاء الكشف؟ سيتم فصل السلف والخصومات لإتاحة إعادة الاحتساب.">
+                    <input type="hidden" name="id" value="@run.Id" />
+                    <input type="hidden" name="year" value="@Model.Year" />
+                    <input type="hidden" name="month" value="@Model.Month" />
+                    <button type="submit" class="btn btn-ghost">إلغاء الكشف</button>
+                </form>
+            }
+        </div>
+
+        @if (run is not null && (run.ReopenReason is not null || run.LockedBy is not null || run.ApprovedBy is not null))
+        {
+            <div class="def-grid" style="margin-top:14px">
+                @if (run.ApprovedBy is not null)
+                {
+                    <div class="def"><div class="k">اعتُمد بواسطة</div><div class="v">@run.ApprovedBy — @run.ApprovedAt?.ToLocalTime().ToString("yyyy-MM-dd HH:mm")</div></div>
+                }
+                @if (run.LockedBy is not null)
+                {
+                    <div class="def"><div class="k">قُفل بواسطة</div><div class="v">@run.LockedBy — @run.LockedAt?.ToLocalTime().ToString("yyyy-MM-dd HH:mm")</div></div>
+                }
+                @if (run.ReopenReason is not null)
+                {
+                    <div class="def span-all"><div class="k">سبب إعادة الفتح</div><div class="v">@run.ReopenReason (@run.ReopenedBy)</div></div>
+                }
+            </div>
+        }
     </div>
 </div>
-<div class="card">
-    <div class="table-responsive">
-        <table class="table table-striped mb-0">
-            <thead><tr><th>الشهر</th><th>الإصدار</th><th>الحالة</th><th>عدد الموظفين</th><th>صافي الإجمالي</th><th>إضافي</th><th>خصومات</th><th>أُنشئ</th><th></th></tr></thead>
-            <tbody>
-            @foreach (var r in Model)
-            {
-                <tr>
-                    <td>@r.Year-@r.Month.ToString("00")</td>
-                    <td>@r.Version</td>
-                    <td>
-                        @if (r.Status == PayrollStatus.Approved) { <span class="badge bg-success">معتمد</span> }
-                        else if (r.Status == PayrollStatus.Cancelled) { <span class="badge bg-secondary">ملغى</span> }
-                        else { <span class="badge bg-warning text-dark">محسوب</span> }
-                    </td>
-                    <td>@r.Items.Count</td>
-                    <td>@r.TotalNet.ToString("#,##0.00")</td>
-                    <td>@r.TotalOvertime.ToString("#,##0.00")</td>
-                    <td>@r.TotalDeductions.ToString("#,##0.00")</td>
-                    <td>@(r.ComputedAt?.ToLocalTime().ToString("yyyy-MM-dd HH:mm"))</td>
-                    <td class="text-nowrap">
-                        <a class="btn btn-sm btn-outline-primary" asp-action="Details" asp-route-id="@r.Id">تفاصيل</a>
-                        <a class="btn btn-sm btn-outline-success" asp-action="Export" asp-route-id="@r.Id">Excel</a>
-                    </td>
-                </tr>
-            }
-            @if (!Model.Any())
-            { <tr><td colspan="9" class="text-center text-muted py-4">لا توجد كشوف رواتب</td></tr> }
-            </tbody>
-        </table>
+
+@if (run is not null)
+{
+    <div class="stat-grid">
+        <div class="stat"><div class="label">👥 عدد الموظفين</div><div class="value">@Model.Rows.Count</div></div>
+        <div class="stat ok"><div class="label">📈 إجمالي الاستحقاقات</div><div class="value">@Model.Rows.Sum(r => r.GrossEarnings).ToString("N2")</div></div>
+        <div class="stat bad"><div class="label">➖ إجمالي الخصومات</div><div class="value">@Model.Rows.Sum(r => r.TotalDeductions).ToString("N2")</div></div>
+        <div class="stat ok"><div class="label">💰 صافي الكشف</div><div class="value">@Model.Rows.Sum(r => r.NetSalary).ToString("N2")</div></div>
+        <div class="stat"><div class="label">⏱️ قيمة الإضافي</div><div class="value">@Model.Rows.Sum(r => r.OvertimeAmount).ToString("N2")</div></div>
+        <div class="stat"><div class="label">⏰ دقائق التأخير</div><div class="value">@Model.Rows.Sum(r => r.LateMinutes)</div></div>
     </div>
+
+    <div class="card">
+        <div class="card-head">
+            <h3>جدول الرواتب</h3>
+            <div class="btn-row">
+                <form method="get" class="btn-row">
+                    <input type="hidden" name="year" value="@Model.Year" />
+                    <input type="hidden" name="month" value="@Model.Month" />
+                    <select name="department">
+                        <option value="">كل الأقسام</option>
+                        @foreach (var d in Model.Departments)
+                        {
+                            <option value="@d" selected="@(Model.Department == d)">@d</option>
+                        }
+                    </select>
+                    <button type="submit" class="btn btn-ghost btn-sm">تصفية</button>
+                </form>
+                <input type="text" data-table-filter="#payrollTable" placeholder="بحث فوري..." style="max-width:240px" />
+            </div>
+        </div>
+        @if (Model.Rows.Count == 0)
+        {
+            ViewData["message"] = "لا توجد أسطر في هذا الكشف";
+            ViewData["icon"] = "💰";
+            <partial name="_Empty" />
+        }
+        else
+        {
+            <div class="table-wrap">
+                <table class="data" id="payrollTable">
+                    <thead>
+                    <tr>
+                        <th>كود</th><th>الاسم</th><th>القسم</th><th>الأساسي</th><th>أيام حضور</th>
+                        <th>راحة مدفوعة</th><th>إجازة مدفوعة</th><th>إجازة بدون أجر</th><th>غياب</th>
+                        <th>إضافي معتمد (ساعة)</th><th>قيمة الإضافي</th><th>خصم تأخير</th><th>خصم غياب</th>
+                        <th>مكافآت/بدلات</th><th>سلف</th><th>إجمالي الاستحقاقات</th><th>إجمالي الخصومات</th><th>الصافي</th><th></th>
+                    </tr>
+                    </thead>
+                    <tbody>
+                    @foreach (var r in Model.Rows)
+                    {
+                        <tr>
+                            <td class="num">@r.EmployeeCode</td>
+                            <td>@r.EmployeeName</td>
+                            <td>@(r.Department ?? "-")</td>
+                            <td class="money">@r.BasicSalary.ToString("N2")</td>
+                            <td class="num">@r.AttendanceDays</td>
+                            <td class="num">@r.PaidRestDays</td>
+                            <td class="num">@r.PaidLeaveDays</td>
+                            <td class="num">@r.UnpaidLeaveDays</td>
+                            <td class="num">@r.AbsenceDays</td>
+                            <td class="num">@r.ApprovedOvertimeHours</td>
+                            <td class="money">@r.OvertimeAmount.ToString("N2")</td>
+                            <td class="money">@r.LateDeduction.ToString("N2")</td>
+                            <td class="money">@r.AbsenceDeduction.ToString("N2")</td>
+                            <td class="money">@((r.Bonuses + r.Allowances).ToString("N2"))</td>
+                            <td class="money">@r.LoansTotal.ToString("N2")</td>
+                            <td class="money">@r.GrossEarnings.ToString("N2")</td>
+                            <td class="money">@r.TotalDeductions.ToString("N2")</td>
+                            <td class="money">@r.NetSalary.ToString("N2")</td>
+                            <td><a class="btn btn-soft btn-sm" asp-action="Payslip" asp-route-id="@r.PayrollItemId">التفاصيل</a></td>
+                        </tr>
+                    }
+                    </tbody>
+                    <tfoot>
+                    <tr>
+                        <td colspan="3">الإجمالي</td>
+                        <td class="money">@Model.Rows.Sum(r => r.BasicSalary).ToString("N2")</td>
+                        <td colspan="6"></td>
+                        <td class="money">@Model.Rows.Sum(r => r.OvertimeAmount).ToString("N2")</td>
+                        <td colspan="4"></td>
+                        <td class="money">@Model.Rows.Sum(r => r.GrossEarnings).ToString("N2")</td>
+                        <td class="money">@Model.Rows.Sum(r => r.TotalDeductions).ToString("N2")</td>
+                        <td class="money">@Model.Rows.Sum(r => r.NetSalary).ToString("N2")</td>
+                        <td></td>
+                    </tr>
+                    </tfoot>
+                </table>
+            </div>
+        }
+    </div>
+}
+
+<div class="card">
+    <div class="card-head"><h3>سجل الكشوف</h3></div>
+    @if (Model.Runs.Count == 0)
+    {
+        ViewData["message"] = "لا توجد كشوف سابقة";
+        ViewData["icon"] = "🗓️";
+        <partial name="_Empty" />
+    }
+    else
+    {
+        <div class="table-wrap">
+            <table class="data">
+                <thead><tr><th>الفترة</th><th>الإصدار</th><th>الحالة</th><th>محسوب بواسطة</th><th>وقت الاحتساب</th><th>إجمالي الاستحقاقات</th><th>صافي</th><th></th></tr></thead>
+                <tbody>
+                @foreach (var r in Model.Runs)
+                {
+                    <tr>
+                        <td class="num">@r.Year-@r.Month.ToString("00")</td>
+                        <td class="num">@r.Version</td>
+                        <td><span class="badge @(r.Status is PayrollStatus.Approved or PayrollStatus.Locked ? "ok" : r.Status == PayrollStatus.Cancelled ? "muted" : "info")">@ExcelExportService.PayrollStatusText(r.Status)</span></td>
+                        <td>@(r.ComputedBy ?? "-")</td>
+                        <td class="num">@(r.ComputedAt?.ToLocalTime().ToString("yyyy-MM-dd HH:mm") ?? "-")</td>
+                        <td class="money">@r.TotalGross.ToString("N2")</td>
+                        <td class="money">@r.TotalNet.ToString("N2")</td>
+                        <td><a class="btn btn-soft btn-sm" asp-action="Details" asp-route-id="@r.Id">عرض</a></td>
+                    </tr>
+                }
+                </tbody>
+            </table>
+        </div>
+    }
 </div>

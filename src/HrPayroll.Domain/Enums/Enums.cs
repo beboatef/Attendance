@@ -1,17 +1,25 @@
 namespace HrPayroll.Domain.Enums;
 
-/// <summary>حالة حضور اليوم للموظف.</summary>
+/// <summary>
+/// حالة حضور اليوم للموظف.
+/// ملاحظة: القيم الجديدة تُضاف في نهاية الترقيم حتى لا تتغير القيم المحفوظة مسبقًا في قاعدة البيانات.
+/// </summary>
 public enum AttendanceStatus
 {
     Present = 0,          // حاضر
-    Absent = 1,           // غائب
+    Absent = 1,           // غائب (بدون تصنيف إجازة)
     Late = 2,             // متأخر
     MissingCheckIn = 3,   // بصمة دخول مفقودة
     MissingCheckOut = 4,  // بصمة خروج مفقودة
-    Leave = 5,            // إجازة
-    RestDay = 6,          // يوم راحة
+    Leave = 5,            // إجازة معتمدة (عام)
+    RestDay = 6,          // يوم راحة أسبوعية
     Holiday = 7,          // عطلة رسمية
-    NeedsReview = 8       // يحتاج مراجعة بشرية
+    NeedsReview = 8,      // يحتاج مراجعة بشرية
+
+    EarlyDeparture = 9,      // انصراف مبكر
+    PaidLeave = 10,          // إجازة مدفوعة
+    UnpaidLeave = 11,        // إجازة بدون أجر
+    UnexcusedAbsence = 12    // غياب بدون عذر
 }
 
 /// <summary>اتجاه حركة البصمة.</summary>
@@ -47,6 +55,15 @@ public enum ClassificationStatus
     Classified = 2     // مصنف بثقة
 }
 
+/// <summary>مصدر تحديد وردية اليوم.</summary>
+public enum ShiftDetectionSource
+{
+    None = 0,       // لم تُحدَّد وردية
+    Assigned = 1,   // من الإسناد الصريح للموظف
+    Detected = 2,   // بالكشف الآلي من البصمات
+    Ambiguous = 3   // غامض: يحتاج مراجعة
+}
+
 /// <summary>حالة الاعتماد العامة.</summary>
 public enum ApprovalStatus
 {
@@ -55,23 +72,48 @@ public enum ApprovalStatus
     Rejected = 2   // مرفوض
 }
 
-/// <summary>حالة كشف الرواتب.</summary>
+/// <summary>حالة كشف الرواتب. القيم الجديدة تُضاف في النهاية للحفاظ على القيم المحفوظة.</summary>
 public enum PayrollStatus
 {
-    Draft = 0,     // مسودة
-    Computed = 1,  // محسوب
-    Approved = 2,  // معتمد (مقفل)
-    Cancelled = 3  // ملغى
+    Draft = 0,          // مسودة
+    Computed = 1,       // محسوب
+    Approved = 2,       // معتمد
+    Cancelled = 3,      // ملغى
+    PendingReview = 4,  // قيد المراجعة
+    Locked = 5,         // مقفل
+    Reopened = 6        // أُعيد فتحه للتصحيح
 }
 
-/// <summary>نوع الإجازة.</summary>
+/// <summary>نوع الإجازة / تصنيف اليوم.</summary>
 public enum LeaveType
 {
-    Annual = 0,    // سنوية
-    Sick = 1,      // مرضية
-    Unpaid = 2,    // بدون أجر
-    Emergency = 3, // طارئة
-    Other = 4
+    Annual = 0,             // سنوية
+    Sick = 1,               // مرضية
+    Unpaid = 2,             // بدون أجر
+    Emergency = 3,          // طارئة
+    Other = 4,              // أخرى
+    PublicHoliday = 5,      // عطلة رسمية
+    UnexcusedAbsence = 6,   // غياب بدون عذر
+    Paid = 7,               // إجازة مدفوعة (عام)
+    WeeklyRest = 8          // راحة أسبوعية
+}
+
+/// <summary>حالة الموظف الوظيفية.</summary>
+public enum EmploymentStatus
+{
+    Active = 0,      // على العمل
+    OnLeave = 1,     // في إجازة طويلة
+    Suspended = 2,   // موقوف
+    Terminated = 3   // منتهي الخدمة
+}
+
+/// <summary>نوع التسوية المالية (مكافأة/بدل/خصم آخر/أيام إضافية).</summary>
+public enum AdjustmentType
+{
+    Bonus = 0,          // مكافأة
+    Allowance = 1,      // بدل
+    OtherDeduction = 2, // خصم آخر
+    AdditionalDays = 3  // أيام عمل إضافية مستحقة خارج فترة الراتب
 }
 
 /// <summary>نتيجة صف الاستيراد.</summary>
@@ -89,4 +131,21 @@ public enum PayrollDayBasis
 {
     Fixed30Days = 0,     // 30 يوم × 8 ساعات = 240 ساعة
     ActualWorkDays = 1   // أيام العمل الفعلية × ساعات الوردية
+}
+
+/// <summary>حالة صف استيراد الموظفين.</summary>
+public enum EmployeeImportRowStatus
+{
+    New = 0,        // موظف جديد سيُضاف
+    Update = 1,     // موظف موجود سيُحدَّث
+    Unchanged = 2,  // موجود بدون تغيير
+    Duplicate = 3,  // مكرر داخل الملف أو مكرر كود
+    Invalid = 4     // بيانات غير صالحة
+}
+
+/// <summary>وضع استيراد الموظفين: إضافة الجديد فقط أو تحديث الموجود أيضًا.</summary>
+public enum EmployeeImportMode
+{
+    CreateOnly = 0,      // إضافة الموظفين الجدد فقط
+    CreateAndUpdate = 1  // إضافة الجدد وتحديث الموجودين صراحةً
 }

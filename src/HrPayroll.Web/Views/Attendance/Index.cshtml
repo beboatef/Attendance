@@ -1,92 +1,168 @@
-@model List<DailyAttendance>
+@using HrPayroll.Domain.Enums
+@model HrPayroll.Web.ViewModels.AttendanceIndexViewModel
 @{
     ViewData["Title"] = "الحضور اليومي";
-    string StatusBadge(AttendanceStatus s) => s switch
+    var f = Model.Filter;
+    var q = new Dictionary<string, string>
     {
-        AttendanceStatus.Present => "bg-success",
-        AttendanceStatus.Late => "bg-warning text-dark",
-        AttendanceStatus.Absent => "bg-danger",
-        AttendanceStatus.Leave => "bg-info text-dark",
-        AttendanceStatus.RestDay => "bg-secondary",
-        AttendanceStatus.MissingCheckIn => "bg-dark",
-        AttendanceStatus.MissingCheckOut => "bg-dark",
-        _ => "bg-warning text-dark"
-    };
-    string StatusText(AttendanceStatus s) => s switch
-    {
-        AttendanceStatus.Present => "حاضر",
-        AttendanceStatus.Late => "متأخر",
-        AttendanceStatus.Absent => "غائب",
-        AttendanceStatus.Leave => "إجازة",
-        AttendanceStatus.RestDay => "يوم راحة",
-        AttendanceStatus.MissingCheckIn => "بصمة دخول مفقودة",
-        AttendanceStatus.MissingCheckOut => "بصمة خروج مفقودة",
-        _ => "يحتاج مراجعة"
+        ["from"] = f.From.ToString("yyyy-MM-dd"),
+        ["to"] = f.To.ToString("yyyy-MM-dd"),
+        ["department"] = f.Department ?? string.Empty,
+        ["employeeId"] = f.EmployeeId?.ToString() ?? string.Empty,
+        ["shiftId"] = f.ShiftId?.ToString() ?? string.Empty,
+        ["status"] = f.Status.HasValue ? ((int)f.Status.Value).ToString() : string.Empty,
+        ["search"] = f.Search ?? string.Empty
     };
 }
-<div class="card mb-3">
+<div class="card">
+    <div class="card-head">
+        <div>
+            <h2>تقرير الحضور اليومي</h2>
+            <div class="sub">@f.PeriodText — كل القيم محسوبة من البصمات المستوردة وقواعد الورديات المعتمدة.</div>
+        </div>
+        <div class="btn-row">
+            <a class="btn btn-soft btn-sm" asp-action="ExportExcel" asp-all-route-data="q">تصدير Excel</a>
+            <a class="btn btn-soft btn-sm" asp-action="ExportPdf" asp-all-route-data="q">تصدير PDF</a>
+        </div>
+    </div>
     <div class="card-body">
-        <form method="get" class="row g-2 align-items-end">
-            <div class="col-md-2"><label class="form-label">من</label><input type="date" name="from" value="@(((DateTime)ViewBag.From).ToString("yyyy-MM-dd"))" class="form-control" /></div>
-            <div class="col-md-2"><label class="form-label">إلى</label><input type="date" name="to" value="@(((DateTime)ViewBag.To).ToString("yyyy-MM-dd"))" class="form-control" /></div>
-            <div class="col-md-3"><label class="form-label">الموظف</label><select name="employeeId" asp-items="ViewBag.Employees" class="form-select"><option value="">الكل</option></select></div>
-            <div class="col-md-2"><label class="form-label">الوردية</label><select name="shiftId" asp-items="ViewBag.Shifts" class="form-select"><option value="">الكل</option></select></div>
-            <div class="col-md-3 d-flex gap-2">
-                <button class="btn btn-primary">عرض</button>
-                <a class="btn btn-outline-secondary" asp-action="Exceptions">الاستثناءات</a>
+        <form method="get" class="filters">
+            <div class="field">
+                <label>من تاريخ</label>
+                <input type="date" name="from" value="@f.From.ToString("yyyy-MM-dd")" />
             </div>
-        </form>
-        <hr />
-        <form asp-action="Process" method="post" class="row g-2 align-items-end">
-            <input type="hidden" name="from" value="@(((DateTime)ViewBag.From).ToString("yyyy-MM-dd"))" />
-            <input type="hidden" name="to" value="@(((DateTime)ViewBag.To).ToString("yyyy-MM-dd"))" />
-            <input type="hidden" name="employeeId" value="@ViewBag.EmployeeId" />
-            <div class="col-md-9">
-                <label class="form-label mb-1">معالجة البصمات وتصنيفها إلى حضور يومي</label>
-                <div class="form-text">يعيد بناء حركات الدخول/الخروج وملخص الحضور للفترة المحددة.</div>
+            <div class="field">
+                <label>إلى تاريخ</label>
+                <input type="date" name="to" value="@f.To.ToString("yyyy-MM-dd")" />
             </div>
-            <div class="col-md-3"><button class="btn btn-success w-100">معالجة الفترة</button></div>
+            <div class="field">
+                <label>القسم</label>
+                <select name="department">
+                    <option value="">كل الأقسام</option>
+                    @foreach (var d in Model.Departments)
+                    {
+                        <option value="@d.Name" selected="@(f.Department == d.Name)">@d.Name</option>
+                    }
+                </select>
+            </div>
+            <div class="field">
+                <label>الموظف</label>
+                <select name="employeeId">
+                    <option value="">كل الموظفين</option>
+                    @foreach (var e in Model.Employees)
+                    {
+                        <option value="@e.Id" selected="@(f.EmployeeId == e.Id)">@e.EmployeeCode — @e.FullName</option>
+                    }
+                </select>
+            </div>
+            <div class="field">
+                <label>الوردية</label>
+                <select name="shiftId">
+                    <option value="">كل الورديات</option>
+                    @foreach (var s in Model.Shifts)
+                    {
+                        <option value="@s.Id" selected="@(f.ShiftId == s.Id)">@s.ShiftName</option>
+                    }
+                </select>
+            </div>
+            <div class="field">
+                <label>الحالة</label>
+                <select name="status" asp-items="Model.StatusList"><option value="">كل الحالات</option></select>
+            </div>
+            <div class="field">
+                <label>بحث</label>
+                <input type="text" name="search" value="@f.Search" placeholder="كود أو اسم" />
+            </div>
+            <div class="field actions">
+                <button type="submit" class="btn btn-primary">عرض</button>
+                <a class="btn btn-ghost" asp-action="Index">مسح</a>
+            </div>
         </form>
     </div>
 </div>
 
+<div class="stat-grid">
+    <div class="stat"><div class="label">📋 إجمالي السجلات</div><div class="value">@Model.Rows.Count</div></div>
+    <div class="stat ok"><div class="label">✅ حضور فعلي</div><div class="value">@Model.PresentCount</div></div>
+    <div class="stat bad"><div class="label">🚫 غياب</div><div class="value">@Model.AbsentCount</div></div>
+    <div class="stat warn"><div class="label">⏰ تأخير</div><div class="value">@Model.LateCount</div><div class="hint">إجمالي @Model.TotalLateMinutes دقيقة</div></div>
+    <div class="stat bad"><div class="label">🔍 يحتاج مراجعة</div><div class="value">@Model.ReviewCount</div></div>
+    <div class="stat"><div class="label">⏱️ إضافي خام</div><div class="value">@Model.TotalRawOvertimeHours <small>ساعة</small></div></div>
+</div>
+
 <div class="card">
-    <div class="table-responsive">
-        <table class="table table-striped table-sm mb-0">
-            <thead>
-            <tr>
-                <th>الكود</th><th>الاسم</th><th>التاريخ</th><th>الوردية</th><th>دخول</th><th>خروج</th>
-                <th>تأخير (د)</th><th>إضافي محسوب</th><th>إضافي معتمد</th><th>الحالة</th><th>المراجعة</th><th>ملاحظات</th><th></th>
-            </tr>
-            </thead>
-            <tbody>
-            @if (!Model.Any())
-            {
-                <tr><td colspan="13" class="text-center text-muted py-4">لا توجد بيانات. اضغط "معالجة الفترة" بعد استيراد البصمات.</td></tr>
-            }
-            @foreach (var d in Model)
-            {
-                <tr>
-                    <td>@d.Employee?.EmployeeCode</td>
-                    <td>@d.Employee?.FullName</td>
-                    <td>@d.WorkDate.ToString("yyyy-MM-dd")</td>
-                    <td>@d.Shift?.ShiftName</td>
-                    <td>@(d.CheckInTime?.ToString("HH:mm"))</td>
-                    <td>@(d.CheckOutTime?.ToString("HH:mm"))</td>
-                    <td>@d.LateMinutes</td>
-                    <td>@Math.Round(d.CalculatedOvertimeMinutes / 60m, 2)</td>
-                    <td>@Math.Round(d.ApprovedOvertimeMinutes / 60m, 2)</td>
-                    <td><span class="badge @StatusBadge(d.Status)">@StatusText(d.Status)</span></td>
-                    <td>
-                        @if (d.PunchReviewStatus == ClassificationStatus.NeedsReview)
-                        { <span class="badge bg-warning text-dark">مراجعة</span> }
-                        else { <span class="badge bg-success">مصنف</span> }
-                    </td>
-                    <td>@(d.AdminNotes ?? d.Notes)</td>
-                    <td><a class="btn btn-sm btn-outline-primary" asp-action="Review" asp-route-id="@d.Id">مراجعة</a></td>
-                </tr>
-            }
-            </tbody>
-        </table>
+    <div class="card-head">
+        <h3>السجلات</h3>
+        <div class="btn-row">
+            <form method="post" asp-action="Process">
+                <input type="hidden" name="from" value="@f.From.ToString("yyyy-MM-dd")" />
+                <input type="hidden" name="to" value="@f.To.ToString("yyyy-MM-dd")" />
+                @if (f.EmployeeId.HasValue) { <input type="hidden" name="employeeId" value="@f.EmployeeId" /> }
+                <button type="submit" class="btn btn-primary btn-sm"
+                        data-confirm="إعادة معالجة الحضور لهذه الفترة من البصمات الخام؟ لن تُلمس السجلات التي صُححت يدويًا.">
+                    إعادة معالجة الحضور للفترة
+                </button>
+            </form>
+            <input type="text" data-table-filter="#attTable" placeholder="بحث فوري..." style="max-width:240px" />
+        </div>
     </div>
+    @if (Model.Rows.Count == 0)
+    {
+        ViewData["message"] = "لا توجد سجلات حضور في هذه الفترة";
+        ViewData["hint"] = "استورد ملف بصمات ثم أعد معالجة الحضور.";
+        ViewData["actionUrl"] = Url.Action("Index", "Import");
+        ViewData["actionText"] = "استيراد ملف بصمات";
+        ViewData["icon"] = "🕒";
+        <partial name="_Empty" />
+    }
+    else
+    {
+        <div class="table-wrap">
+            <table class="data" id="attTable">
+                <thead>
+                <tr>
+                    <th>كود</th><th>الاسم</th><th>القسم</th><th>المسمى</th><th>التاريخ</th><th>الوردية</th>
+                    <th>بداية</th><th>نهاية</th><th>الدخول</th><th>الخروج</th><th>ساعات العمل</th>
+                    <th>تأخير</th><th>انصراف مبكر</th><th>إضافي خام</th><th>إضافي معتمد</th>
+                    <th>الحالة</th><th>ملاحظات</th><th></th>
+                </tr>
+                </thead>
+                <tbody>
+                @foreach (var r in Model.Rows)
+                {
+                    <tr>
+                        <td class="num">@r.EmployeeCode</td>
+                        <td>@r.EmployeeName</td>
+                        <td>@(r.Department ?? "-")</td>
+                        <td>@(r.JobTitle ?? "-")</td>
+                        <td class="num">@r.WorkDate.ToString("yyyy-MM-dd")</td>
+                        <td>
+                            @(r.ShiftName ?? "-")
+                            @if (r.DetectionSource == ShiftDetectionSource.Detected)
+                            {
+                                <span class="badge info">مُكتشفة</span>
+                            }
+                            else if (r.DetectionSource == ShiftDetectionSource.Ambiguous)
+                            {
+                                <span class="badge bad">غامضة</span>
+                            }
+                        </td>
+                        <td class="num">@r.ShiftStart.ToString("HH:mm")</td>
+                        <td class="num">@r.ShiftEnd.ToString("HH:mm")</td>
+                        <td class="num">@(r.CheckIn?.ToString("HH:mm") ?? "-")</td>
+                        <td class="num">@(r.CheckOut?.ToString("HH:mm") ?? "-")</td>
+                        <td class="num">@r.WorkedHours</td>
+                        <td class="num">@r.LateMinutes</td>
+                        <td class="num">@r.EarlyLeaveMinutes</td>
+                        <td class="num">@r.RawOvertimeHours</td>
+                        <td class="num">@r.ApprovedOvertimeHours</td>
+                        <td><partial name="_StatusBadge" model="r.Status" /></td>
+                        <td class="wrap">@(r.Notes ?? "-")</td>
+                        <td><a class="btn btn-soft btn-sm" asp-action="Correct" asp-route-id="@r.DailyAttendanceId">تصحيح</a></td>
+                    </tr>
+                }
+                </tbody>
+            </table>
+        </div>
+    }
 </div>

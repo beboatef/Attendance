@@ -1,0 +1,22 @@
+@using HrPayroll.Domain.Enums
+@model AttendanceStatus
+@{
+    var (cls, text) = Model switch
+    {
+        AttendanceStatus.Present => ("ok", "حاضر"),
+        AttendanceStatus.Late => ("warn", "متأخر"),
+        AttendanceStatus.EarlyDeparture => ("warn", "انصراف مبكر"),
+        AttendanceStatus.Absent => ("bad", "غائب"),
+        AttendanceStatus.UnexcusedAbsence => ("bad", "غياب بدون عذر"),
+        AttendanceStatus.MissingCheckIn => ("bad", "دخول مفقود"),
+        AttendanceStatus.MissingCheckOut => ("bad", "خروج مفقود"),
+        AttendanceStatus.NeedsReview => ("bad", "يحتاج مراجعة"),
+        AttendanceStatus.Leave => ("info", "إجازة"),
+        AttendanceStatus.PaidLeave => ("info", "إجازة مدفوعة"),
+        AttendanceStatus.UnpaidLeave => ("info", "إجازة بدون أجر"),
+        AttendanceStatus.RestDay => ("muted", "يوم راحة"),
+        AttendanceStatus.Holiday => ("muted", "عطلة رسمية"),
+        _ => ("muted", Model.ToString())
+    };
+}
+<span class="badge @cls">@text</span>

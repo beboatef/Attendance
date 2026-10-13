@@ -1,18 +1,139 @@
+@using HrPayroll.Domain.Entities
+@using HrPayroll.Domain.Enums
 @model Employee
-@{ ViewData["Title"] = "تفاصيل الموظف"; }
+@using HrPayroll.Infrastructure.Services
+@{
+    ViewData["Title"] = "تفاصيل الموظف";
+    var daily = Model.DailyRate is > 0m ? Model.DailyRate.Value : Model.BasicSalary / 30m;
+    var hourly = daily / 8m;
+    var attendances = ViewBag.ThisMonth as List<DailyAttendance> ?? new List<DailyAttendance>();
+    var leaves = ViewBag.Leaves as List<LeaveRequest> ?? new List<LeaveRequest>();
+    var items = ViewBag.PayrollItems as List<PayrollItem> ?? new List<PayrollItem>();
+}
 <div class="card">
-    <div class="card-header fw-bold">@Model.FullName (@Model.EmployeeCode)</div>
+    <div class="card-head">
+        <div>
+            <h2>@Model.FullName <span class="badge info">@Model.EmployeeCode</span></h2>
+            <div class="sub">@(Model.Department ?? "بدون قسم") — @(Model.JobTitle ?? "بدون مسمى")</div>
+        </div>
+        <div class="btn-row">
+            <a class="btn btn-soft btn-sm" asp-action="Edit" asp-route-id="@Model.Id">تعديل</a>
+            <a class="btn btn-ghost btn-sm" asp-action="Index">رجوع</a>
+        </div>
+    </div>
     <div class="card-body">
-        <dl class="row mb-0">
-            <dt class="col-sm-3">كود الجهاز</dt><dd class="col-sm-9">@Model.DeviceEmployeeCode</dd>
-            <dt class="col-sm-3">المسمى الوظيفي</dt><dd class="col-sm-9">@Model.JobTitle</dd>
-            <dt class="col-sm-3">القسم</dt><dd class="col-sm-9">@Model.Department</dd>
-            <dt class="col-sm-3">الوردية</dt><dd class="col-sm-9">@Model.Shift?.ShiftName</dd>
-            <dt class="col-sm-3">الراتب الأساسي</dt><dd class="col-sm-9">@Model.BasicSalary.ToString("#,##0.00")</dd>
-            <dt class="col-sm-3">تاريخ التعيين</dt><dd class="col-sm-9">@Model.HireDate.ToString("yyyy-MM-dd")</dd>
-            <dt class="col-sm-3">الحالة</dt><dd class="col-sm-9">@(Model.IsActive ? "نشط" : "معطّل")</dd>
-            <dt class="col-sm-3">ملاحظات</dt><dd class="col-sm-9">@Model.Notes</dd>
-        </dl>
+        <div class="def-grid">
+            <div class="def"><div class="k">كود البصمة</div><div class="v">@(Model.DeviceEmployeeCode ?? "-")</div></div>
+            <div class="def"><div class="k">الراتب الأساسي</div><div class="v">@Model.BasicSalary.ToString("N2")</div></div>
+            <div class="def"><div class="k">الأجر اليومي</div><div class="v">@daily.ToString("N2")</div></div>
+            <div class="def"><div class="k">أجر الساعة</div><div class="v">@hourly.ToString("N2")</div></div>
+            <div class="def"><div class="k">ساعات العمل اليومية</div><div class="v">@Model.StandardWorkHours</div></div>
+            <div class="def"><div class="k">الوردية</div><div class="v">@(Model.Shift?.ShiftName ?? "بدون")</div></div>
+            <div class="def"><div class="k">تاريخ التعيين</div><div class="v">@Model.HireDate.ToString("yyyy-MM-dd")</div></div>
+            <div class="def"><div class="k">الحالة الوظيفية</div><div class="v">@Model.EmploymentStatus</div></div>
+            <div class="def"><div class="k">استحقاق الإجازة السنوية</div><div class="v">@Model.AnnualLeaveEntitlement يوم</div></div>
+            <div class="def"><div class="k">الرصيد المتبقي</div><div class="v">@Model.AnnualLeaveBalance يوم</div></div>
+            <div class="def"><div class="k">الهاتف</div><div class="v">@(Model.Phone ?? "-")</div></div>
+            <div class="def"><div class="k">البريد</div><div class="v">@(Model.Email ?? "-")</div></div>
+        </div>
     </div>
 </div>
-<a class="btn btn-secondary mt-3" asp-action="Index">عودة</a>
+
+<div class="card">
+    <div class="card-head"><h3>حضور الشهر الحالي (@attendances.Count سجل)</h3></div>
+    @if (attendances.Count == 0)
+    {
+        ViewData["message"] = "لا توجد سجلات حضور لهذا الشهر";
+        ViewData["icon"] = "🕒";
+        <partial name="_Empty" />
+    }
+    else
+    {
+        <div class="table-wrap">
+            <table class="data">
+                <thead>
+                <tr><th>التاريخ</th><th>الدخول</th><th>الخروج</th><th>تأخير</th><th>إضافي معتمد</th><th>الحالة</th></tr>
+                </thead>
+                <tbody>
+                @foreach (var a in attendances)
+                {
+                    <tr>
+                        <td class="num">@a.WorkDate.ToString("yyyy-MM-dd")</td>
+                        <td class="num">@(a.CheckInTime?.ToString("HH:mm") ?? "-")</td>
+                        <td class="num">@(a.CheckOutTime?.ToString("HH:mm") ?? "-")</td>
+                        <td class="num">@a.LateMinutes</td>
+                        <td class="num">@a.ApprovedOvertimeMinutes</td>
+                        <td><partial name="_StatusBadge" model="a.Status" /></td>
+                    </tr>
+                }
+                </tbody>
+            </table>
+        </div>
+    }
+</div>
+
+<div class="card">
+    <div class="card-head"><h3>آخر 10 كشوف رواتب</h3></div>
+    @if (items.Count == 0)
+    {
+        ViewData["message"] = "لم يدخل الموظف في أي كشف رواتب بعد";
+        ViewData["icon"] = "💰";
+        <partial name="_Empty" />
+    }
+    else
+    {
+        <div class="table-wrap">
+            <table class="data">
+                <thead>
+                <tr><th>الفترة</th><th>الأساسي</th><th>إضافي معتمد (ساعة)</th><th>قيمة الإضافي</th><th>إجمالي الخصومات</th><th>الصافي</th><th>الحالة</th><th></th></tr>
+                </thead>
+                <tbody>
+                @foreach (var i in items)
+                {
+                    <tr>
+                        <td class="num">@(i.PayrollRun != null ? $"{i.PayrollRun.Year}-{i.PayrollRun.Month:00}" : "-")</td>
+                        <td class="money">@i.BasicSalary.ToString("N2")</td>
+                        <td class="num">@i.ApprovedOvertimeHours</td>
+                        <td class="money">@i.OvertimeAmount.ToString("N2")</td>
+                        <td class="money">@i.TotalDeductions.ToString("N2")</td>
+                        <td class="money">@i.NetSalary.ToString("N2")</td>
+                        <td><span class="badge info">@ExcelExportService.PayrollStatusText(i.Status)</span></td>
+                        <td><a class="btn btn-soft btn-sm" asp-controller="Payroll" asp-action="Payslip" asp-route-id="@i.Id">كشف الراتب</a></td>
+                    </tr>
+                }
+                </tbody>
+            </table>
+        </div>
+    }
+</div>
+
+<div class="card">
+    <div class="card-head"><h3>الإجازات</h3></div>
+    @if (leaves.Count == 0)
+    {
+        ViewData["message"] = "لا توجد إجازات مسجلة";
+        ViewData["icon"] = "🌴";
+        <partial name="_Empty" />
+    }
+    else
+    {
+        <div class="table-wrap">
+            <table class="data">
+                <thead><tr><th>من</th><th>إلى</th><th>النوع</th><th>أيام العمل</th><th>مدفوعة</th><th>الحالة</th></tr></thead>
+                <tbody>
+                @foreach (var l in leaves)
+                {
+                    <tr>
+                        <td class="num">@l.StartDate.ToString("yyyy-MM-dd")</td>
+                        <td class="num">@l.EndDate.ToString("yyyy-MM-dd")</td>
+                        <td>@l.LeaveType</td>
+                        <td class="num">@l.WorkingDays</td>
+                        <td>@(l.IsPaid ? "نعم" : "لا")</td>
+                        <td><span class="badge @(l.Status == ApprovalStatus.Approved ? "ok" : l.Status == ApprovalStatus.Rejected ? "bad" : "warn")">@l.Status</span></td>
+                    </tr>
+                }
+                </tbody>
+            </table>
+        </div>
+    }
+</div>

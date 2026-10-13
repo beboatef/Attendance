@@ -1,36 +1,68 @@
+@using HrPayroll.Domain.Entities
 @model ImportBatch
 @{
     ViewData["Title"] = "تفاصيل عملية الاستيراد";
     var punches = ViewBag.Punches as List<RawPunch> ?? new List<RawPunch>();
 }
-<div class="card mb-3">
-    <div class="card-header fw-bold">@Model.FileName</div>
-    <div class="card-body row">
-        <div class="col-md-3"><strong>النوع:</strong> @Model.DetectedFormat</div>
-        <div class="col-md-3"><strong>وقت الاستيراد:</strong> @Model.ImportedAt.ToLocalTime().ToString("yyyy-MM-dd HH:mm")</div>
-        <div class="col-md-3"><strong>المستخدم:</strong> @Model.ImportedByName</div>
-        <div class="col-md-3"><strong>الإجمالي:</strong> @Model.TotalRows</div>
-        <div class="col-md-3 text-success"><strong>ناجح:</strong> @Model.SuccessRows</div>
-        <div class="col-md-3 text-warning"><strong>مكرر:</strong> @Model.DuplicateRows</div>
-        <div class="col-md-3 text-danger"><strong>غير صالح:</strong> @Model.InvalidRows</div>
-        <div class="col-md-3 text-danger"><strong>موظف غير معروف:</strong> @Model.UnknownEmployeeRows</div>
-    </div>
-</div>
 <div class="card">
-    <div class="card-header fw-bold">أول 100 بصمة مستوردة</div>
-    <div class="table-responsive">
-        <table class="table table-sm table-striped mb-0">
-            <thead><tr><th>#</th><th>الجهاز</th><th>الكود</th><th>النوع</th><th>الوقت</th><th>النص الأصلي</th></tr></thead>
-            <tbody>
-            @foreach (var p in punches)
-            {
-                <tr>
-                    <td>@p.RowNumber</td><td>@p.DeviceId</td><td>@p.DeviceEmployeeCode</td>
-                    <td>@p.AttType</td><td>@p.PunchTime.ToString("yyyy-MM-dd HH:mm:ss")</td><td>@p.RawPunchTimeText</td>
-                </tr>
-            }
-            </tbody>
-        </table>
+    <div class="card-head">
+        <div>
+            <h2>@Model.FileName</h2>
+            <div class="sub">@Model.ImportedAt.ToLocalTime().ToString("yyyy-MM-dd HH:mm") — بواسطة @(Model.ImportedByName ?? "-")</div>
+        </div>
+        <a class="btn btn-ghost btn-sm" asp-action="Index">رجوع</a>
+    </div>
+    <div class="card-body">
+        <div class="def-grid">
+            <div class="def"><div class="k">الصيغة المكتشفة</div><div class="v">@(Model.DetectedFormat ?? "-")</div></div>
+            <div class="def"><div class="k">إجمالي الصفوف</div><div class="v">@Model.TotalRows</div></div>
+            <div class="def"><div class="k">مستوردة بنجاح</div><div class="v">@Model.SuccessRows</div></div>
+            <div class="def"><div class="k">مكررة</div><div class="v">@Model.DuplicateRows</div></div>
+            <div class="def"><div class="k">غير صالحة</div><div class="v">@Model.InvalidRows</div></div>
+            <div class="def"><div class="k">موظف غير مسجل</div><div class="v">@Model.UnknownEmployeeRows</div></div>
+            <div class="def span-2"><div class="k">ملاحظات</div><div class="v">@(Model.Notes ?? "-")</div></div>
+            <div class="def span-2"><div class="k">هاش الملف (لمنع إعادة الاستيراد)</div><div class="v" style="font-size:11px">@Model.FileHash</div></div>
+        </div>
     </div>
 </div>
-<a class="btn btn-secondary mt-3" asp-action="Index">عودة</a>
+
+<div class="card">
+    <div class="card-head">
+        <h3>البصمات الخام المستوردة (@punches.Count من إجمالي @Model.SuccessRows)</h3>
+        <div class="btn-row">
+            <form method="post" asp-action="Index" class="d-inline" hidden></form>
+            <a class="btn btn-primary btn-sm" asp-action="Index" asp-controller="Attendance"
+               asp-route-from="@Model.ImportedAt.ToLocalTime().AddDays(-1).ToString("yyyy-MM-dd")"
+               asp-route-to="@Model.ImportedAt.ToLocalTime().ToString("yyyy-MM-dd")">معالجة الحضور</a>
+        </div>
+    </div>
+    @if (punches.Count == 0)
+    {
+        ViewData["message"] = "لا توجد بصمات مستوردة في هذه الدفعة";
+        ViewData["icon"] = "📄";
+        <partial name="_Empty" />
+    }
+    else
+    {
+        <div class="table-wrap">
+            <table class="data">
+                <thead><tr><th>#</th><th>كود الجهاز</th><th>الاسم من الجهاز</th><th>رقم الجهاز</th><th>نوع الحركة</th><th>وقت البصمة</th><th>النص الأصلي</th><th>رقم الصف</th></tr></thead>
+                <tbody>
+                @foreach (var p in punches)
+                {
+                    <tr>
+                        <td class="num">@p.Id</td>
+                        <td class="num">@p.DeviceEmployeeCode</td>
+                        <td>@(p.RawEmployeeName ?? "-")</td>
+                        <td class="num">@(p.DeviceId ?? "-")</td>
+                        <td>@(p.AttType ?? "-")</td>
+                        <td class="num">@p.PunchTime.ToString("yyyy-MM-dd HH:mm:ss")</td>
+                        <td class="num">@(p.RawPunchTimeText ?? "-")</td>
+                        <td class="num">@(p.RowNumber?.ToString() ?? "-")</td>
+                    </tr>
+                }
+                </tbody>
+            </table>
+        </div>
+    }
+</div>

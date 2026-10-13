@@ -52,9 +52,32 @@ public static class DbSeeder
         if (!await db.Shifts.AnyAsync())
         {
             db.Shifts.AddRange(
-                new Shift { ShiftName = "الوردية الأولى", StartTime = new TimeSpan(7, 0, 0), EndTime = new TimeSpan(15, 0, 0), GraceMinutes = 30, IsOvernight = false, OvertimeMultiplier = 1m, IsActive = true },
-                new Shift { ShiftName = "الوردية الثانية", StartTime = new TimeSpan(15, 0, 0), EndTime = new TimeSpan(23, 0, 0), GraceMinutes = 0, IsOvernight = false, OvertimeMultiplier = 1m, IsActive = true },
-                new Shift { ShiftName = "الوردية الثالثة (ليلية)", StartTime = new TimeSpan(23, 0, 0), EndTime = new TimeSpan(7, 0, 0), GraceMinutes = 0, IsOvernight = true, OvertimeMultiplier = 1m, IsActive = true }
+                // الوردية الأولى: التكوين المعتمد رسميًا 07:00 - 15:00 مع سماح 30 دقيقة دخولًا وخروجًا.
+                new Shift
+                {
+                    ShiftName = "الوردية الأولى", ShiftNumber = 1,
+                    StartTime = new TimeSpan(7, 0, 0), EndTime = new TimeSpan(15, 0, 0),
+                    StandardHours = 8m, EntryGraceMinutes = 30, ExitGraceMinutes = 30,
+                    WorkingDays = "0,1,2,3,4,6", IsOvernight = false, OvertimeMultiplier = 1m, IsActive = true,
+                    Notes = "الوردية الصباحية الافتراضية 07:00 - 15:00"
+                },
+                // الورديتان الثانية والثالثة: جدولهما غير محدد من الشركة، لذلك يبقيان قابلين للتعديل من شاشة الورديات.
+                new Shift
+                {
+                    ShiftName = "الوردية الثانية", ShiftNumber = 2,
+                    StartTime = new TimeSpan(15, 0, 0), EndTime = new TimeSpan(23, 0, 0),
+                    StandardHours = 8m, EntryGraceMinutes = 30, ExitGraceMinutes = 30,
+                    WorkingDays = "0,1,2,3,4,6", IsOvernight = false, OvertimeMultiplier = 1m, IsActive = true,
+                    Notes = "مواعيد مؤقتة — يجب على المسؤول ضبطها حسب سياسة الشركة"
+                },
+                new Shift
+                {
+                    ShiftName = "الوردية الثالثة (ليلية)", ShiftNumber = 3,
+                    StartTime = new TimeSpan(23, 0, 0), EndTime = new TimeSpan(7, 0, 0),
+                    StandardHours = 8m, EntryGraceMinutes = 30, ExitGraceMinutes = 30,
+                    WorkingDays = "0,1,2,3,4,6", IsOvernight = true, OvertimeMultiplier = 1m, IsActive = true,
+                    Notes = "مواعيد مؤقتة — يجب على المسؤول ضبطها حسب سياسة الشركة"
+                }
             );
             await db.SaveChangesAsync();
             logger.LogInformation("تم إنشاء الورديات الافتراضية");
@@ -62,15 +85,31 @@ public static class DbSeeder
 
         var defaults = new Dictionary<string, (string Value, string Desc)>
         {
-            [SettingKeys.WorkDaysPerMonth] = ("30", "عدد أيام العمل في الشهر المستخدم لحساب قيمة الساعة"),
-            [SettingKeys.WorkHoursPerDay] = ("8", "عدد ساعات العمل اليومية"),
-            [SettingKeys.DefaultOvertimeMultiplier] = ("1", "معامل الإضافي الافتراضي"),
+            // ===== سياسة الأجر =====
+            [SettingKeys.WorkDaysPerMonth] = ("30", "عدد أيام الشهر المستخدم لحساب الأجر اليومي (الأجر اليومي = الراتب / هذا الرقم)"),
+            [SettingKeys.WorkHoursPerDay] = ("8", "ساعات العمل اليومية (الأجر بالساعة = الأجر اليومي / هذا الرقم)"),
+            [SettingKeys.DefaultOvertimeMultiplier] = ("1", "معامل الإضافي. سياسة الشركة = 1 (بدون أي مضاعفة): الإضافي يُدفع بسعر الساعة العادي"),
             [SettingKeys.LateDeductionEnabled] = ("true", "تفعيل خصم التأخير من الراتب"),
-            [SettingKeys.AbsenceDeductionEnabled] = ("false", "تفعيل خصم الغياب (لا يُفعّل إلا بسياسة معتمدة)"),
+            [SettingKeys.AbsenceDeductionEnabled] = ("true", "تفعيل خصم أيام الغياب (سعر اليوم = الأجر اليومي)"),
+            [SettingKeys.UnpaidLeaveDeductionEnabled] = ("true", "تفعيل خصم الإجازات بدون أجر"),
+            [SettingKeys.OvertimeRoundingStepMinutes] = ("1", "خطوة تقريب الإضافي النهائي بالدقائق: 1 = بلا تقريب، ويمكن استخدام 5 أو 15 أو 30"),
+            [SettingKeys.RoundOvertimeDown] = ("true", "تقريب الإضافي للأسفل عند استخدام خطوة تقريب أكبر من 1"),
             [SettingKeys.RequireOvertimeApproval] = ("true", "يتطلب اعتماد الإضافي يدويًا قبل إضافته للراتب"),
-            [SettingKeys.CompanyTimeZone] = ("Arab Standard Time", "المنطقة الزمنية المحلية للشركة"),
+            [SettingKeys.AllowPayrollWithoutAttendance] = ("false", "السماح باحتساب كشف لفترة بلا بيانات حضور معالجة (غير مُستحسن)"),
+            [SettingKeys.MonthlySalaryIncludesPaidRestDays] = ("true", "الراتب الشهري يشمل بالفعل أيام الراحة المدفوعة فلا تُضاف قيمتها مرة أخرى"),
+            [SettingKeys.AnnualLeaveEntitlementDays] = ("21", "رصيد الإجازة السنوية الافتراضي باليوم للموظف الجديد"),
+
+            // ===== الحضور =====
             [SettingKeys.WeeklyRestDays] = ("5", "أيام الراحة الأسبوعية (5=الجمعة، 6=السبت) مثال: 5,6"),
-            [SettingKeys.Currency] = ("SAR", "عملة الرواتب")
+            [SettingKeys.EntryGraceMinutes] = ("30", "دقائق السماح الافتراضية عند الدخول (تُستخدم عند عدم ضبطها في الوردية)"),
+            [SettingKeys.ExitGraceMinutes] = ("30", "دقائق السماح الافتراضية عند الخروج (تُستخدم عند عدم ضبطها في الوردية)"),
+            [SettingKeys.MinimumOvertimeMinutes] = ("1", "أقل مدة إضافي معتبرة بالدقائق"),
+            [SettingKeys.AutoProcessAfterImport] = ("false", "معالجة الحضور تلقائيًا بعد كل استيراد ملف بصمات"),
+
+            // ===== عام =====
+            [SettingKeys.CompanyTimeZone] = ("Egypt Standard Time", "المنطقة الزمنية المحلية للشركة"),
+            [SettingKeys.CompanyName] = ("شركة الموارد البشرية", "اسم الشركة الظاهر في التقارير وكشوف الرواتب"),
+            [SettingKeys.Currency] = ("EGP", "عملة الرواتب")
         };
 
         var existingKeys = await db.AppSettings.Select(s => s.Key).ToListAsync();

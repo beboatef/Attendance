@@ -1,0 +1,104 @@
+@using HrPayroll.Domain.Enums
+@using HrPayroll.Infrastructure.Services
+@model HrPayroll.Web.ViewModels.AttendanceCorrectionViewModel
+@{
+    var d = Model.Daily;
+    ViewData["Title"] = "تصحيح سجل حضور";
+}
+<div class="card">
+    <div class="card-head">
+        <div>
+            <h2>تصحيح حضور — @(d.Employee?.FullName ?? "-")</h2>
+            <div class="sub">@d.WorkDate.ToString("yyyy-MM-dd") — الوردية: @(d.Shift?.ShiftName ?? "بدون") (@d.ShiftStart.ToString("HH:mm") إلى @d.ShiftEnd.ToString("HH:mm"))</div>
+        </div>
+        <a class="btn btn-ghost btn-sm" asp-action="Index" asp-route-from="@d.WorkDate.ToString("yyyy-MM-dd")" asp-route-to="@d.WorkDate.ToString("yyyy-MM-dd")">رجوع</a>
+    </div>
+    <div class="card-body">
+        <div class="def-grid">
+            <div class="def"><div class="k">كود الموظف</div><div class="v">@(d.Employee?.EmployeeCode ?? "-")</div></div>
+            <div class="def"><div class="k">كود البصمة</div><div class="v">@(d.Employee?.DeviceEmployeeCode ?? "-")</div></div>
+            <div class="def"><div class="k">الدخول الحالي</div><div class="v">@(d.CheckInTime?.ToString("yyyy-MM-dd HH:mm") ?? "—")</div></div>
+            <div class="def"><div class="k">الخروج الحالي</div><div class="v">@(d.CheckOutTime?.ToString("yyyy-MM-dd HH:mm") ?? "—")</div></div>
+            <div class="def"><div class="k">الحالة الحالية</div><div class="v"><partial name="_StatusBadge" model="d.Status" /></div></div>
+            <div class="def"><div class="k">الإضافي الخام</div><div class="v">@d.RawOvertimeMinutes دقيقة</div></div>
+            <div class="def"><div class="k">الإضافي المعتمد</div><div class="v">@d.ApprovedOvertimeMinutes دقيقة</div></div>
+            <div class="def"><div class="k">تصحيح يدوي سابق؟</div><div class="v">@(d.IsManualOverride ? "نعم" : "لا")</div></div>
+        </div>
+
+        <div class="alert alert-info" style="margin-top:16px">
+            <span>البصمات الخام تبقى محفوظة كما وردت من الجهاز، والتصحيح يُسجَّل مع القيمة الأصلية والمصححة والسبب والمستخدم والوقت.</span>
+        </div>
+
+        <form method="post" asp-action="Correct" asp-route-id="@d.Id">
+            <div asp-validation-summary="ModelOnly" class="alert alert-danger" style="display:@(ViewData.ModelState.ErrorCount > 0 ? "flex" : "none")"></div>
+            <div class="form-grid">
+                <div class="field">
+                    <label>وقت الدخول المصحح</label>
+                    <input type="datetime-local" name="CheckIn" value="@(Model.CheckIn?.ToString("yyyy-MM-ddTHH:mm"))" />
+                </div>
+                <div class="field">
+                    <label>وقت الخروج المصحح</label>
+                    <input type="datetime-local" name="CheckOut" value="@(Model.CheckOut?.ToString("yyyy-MM-ddTHH:mm"))" />
+                </div>
+                <div class="field">
+                    <label>الحالة</label>
+                    <select name="Status" asp-items="Model.StatusList"></select>
+                </div>
+                <div class="field">
+                    <label>الإضافي المعتمد (دقيقة)</label>
+                    <input type="number" name="ApprovedOvertimeMinutes" min="0" value="@Model.ApprovedOvertimeMinutes" />
+                    <span class="hint">لا يمكن أن يتجاوز الإضافي الخام (@d.RawOvertimeMinutes دقيقة).</span>
+                </div>
+                <div class="field span-2">
+                    <label>سبب التصحيح (مطلوب)</label>
+                    <input type="text" name="Reason" value="@Model.Reason" required />
+                    <span class="hint">يُحفظ السبب في سجل التصحيحات وسجل المراجعة.</span>
+                </div>
+                <div class="field">
+                    <label>الاعتماد</label>
+                    <select name="Approve">
+                        <option value="true">اعتماد التصحيح مباشرة</option>
+                        <option value="false">تسجيله كطلب غير معتمد</option>
+                    </select>
+                </div>
+            </div>
+            <div class="btn-row" style="margin-top:16px">
+                <button type="submit" class="btn btn-primary btn-lg"
+                        data-confirm="تأكيد تصحيح سجل الحضور؟">حفظ التصحيح</button>
+                <a class="btn btn-ghost btn-lg" asp-action="Index" asp-route-from="@d.WorkDate.ToString("yyyy-MM-dd")" asp-route-to="@d.WorkDate.ToString("yyyy-MM-dd")">إلغاء</a>
+            </div>
+        </form>
+    </div>
+</div>
+
+<div class="card">
+    <div class="card-head"><h3>سجل التصحيحات على هذا اليوم (@Model.History.Count)</h3></div>
+    @if (Model.History.Count == 0)
+    {
+        ViewData["message"] = "لا توجد تصحيحات سابقة على هذا السجل";
+        ViewData["icon"] = "📝";
+        <partial name="_Empty" />
+    }
+    else
+    {
+        <div class="table-wrap">
+            <table class="data">
+                <thead><tr><th>الوقت</th><th>المستخدم</th><th>الحقل</th><th>القيمة الأصلية</th><th>القيمة المصححة</th><th>السبب</th><th>الحالة</th></tr></thead>
+                <tbody>
+                @foreach (var c in Model.History)
+                {
+                    <tr>
+                        <td class="num">@c.CreatedAt.ToLocalTime().ToString("yyyy-MM-dd HH:mm")</td>
+                        <td>@(c.CreatedBy ?? "-")</td>
+                        <td>@c.FieldName</td>
+                        <td class="num">@(c.OldValue ?? "-")</td>
+                        <td class="num">@(c.NewValue ?? "-")</td>
+                        <td class="wrap">@c.Reason</td>
+                        <td><span class="badge @(c.Status == ApprovalStatus.Approved ? "ok" : "warn")">@c.Status</span></td>
+                    </tr>
+                }
+                </tbody>
+            </table>
+        </div>
+    }
+</div>

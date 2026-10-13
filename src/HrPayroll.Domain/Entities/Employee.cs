@@ -12,20 +12,50 @@ public class Employee : BaseEntity
     public string? DeviceEmployeeCode { get; set; }
 
     public string FullName { get; set; } = string.Empty;
+
+    // ===== البيانات المرجعية (مع الاحتفاظ بالنص للتوافق وللقطة الرواتب) =====
     public string? JobTitle { get; set; }
     public string? Department { get; set; }
 
-    /// <summary>الوردية الأساسية الحالية.</summary>
+    public int? DepartmentId { get; set; }
+    public Department? DepartmentRef { get; set; }
+
+    public int? JobTitleId { get; set; }
+    public JobTitle? JobTitleRef { get; set; }
+
+    // ===== الوردية =====
+    /// <summary>الوردية الأساسية الحالية (اختيارية: لا يُلزم الموظف بوردية ثابتة).</summary>
     public int? ShiftId { get; set; }
     public Shift? Shift { get; set; }
 
+    // ===== الأجر =====
     public decimal BasicSalary { get; set; }
+
+    /// <summary>الأجر اليومي إذا كان له سياسة مستقلة (وإلا يُحسب من الراتب الأساسي / أيام الشهر).</summary>
+    public decimal? DailyRate { get; set; }
+
+    /// <summary>ساعات العمل القياسية في اليوم لهذا الموظف (افتراضيًا 8).</summary>
+    public decimal StandardWorkHours { get; set; } = 8m;
+
+    // ===== الإجازات =====
+    /// <summary>رصيد الإجازة السنوية المستحق في السنة.</summary>
+    public decimal AnnualLeaveEntitlement { get; set; }
+
+    /// <summary>الرصيد الحالي المتبقي من الإجازة السنوية.</summary>
+    public decimal AnnualLeaveBalance { get; set; }
+
+    // ===== الحالة الوظيفية =====
     public DateTime HireDate { get; set; }
+    public EmploymentStatus EmploymentStatus { get; set; } = EmploymentStatus.Active;
+
+    /// <summary>مشتق من الحالة الوظيفية ويُحفظ للتوافق مع الاستعلامات القائمة.</summary>
     public bool IsActive { get; set; } = true;
+
     public DateTime? TerminationDate { get; set; }
 
     public string? Email { get; set; }
     public string? Phone { get; set; }
+    public string? ContactInfo { get; set; }
     public string? NationalId { get; set; }
     public string? Notes { get; set; }
 
@@ -38,4 +68,6 @@ public class Employee : BaseEntity
     public ICollection<Deduction> Deductions { get; set; } = new List<Deduction>();
     public ICollection<OvertimeApproval> OvertimeApprovals { get; set; } = new List<OvertimeApproval>();
     public ICollection<PayrollItem> PayrollItems { get; set; } = new List<PayrollItem>();
+    public ICollection<PayrollAdjustment> Adjustments { get; set; } = new List<PayrollAdjustment>();
+    public ICollection<AttendanceCorrection> Corrections { get; set; } = new List<AttendanceCorrection>();
 }

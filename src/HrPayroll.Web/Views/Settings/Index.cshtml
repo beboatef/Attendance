@@ -1,25 +1,184 @@
-@model List<AppSetting>
-@{ ViewData["Title"] = "إعدادات النظام"; }
+@using HrPayroll.Domain.Entities
+@using HrPayroll.Domain.Models
+@using HrPayroll.Infrastructure.Services
+@{
+    ViewData["Title"] = "الإعدادات";
+    var settings = ViewBag.Settings as List<AppSetting> ?? new List<AppSetting>();
+    var policy = ViewBag.Policy as AttendancePolicy;
+    var logs = ViewBag.AuditLogs as List<AuditLog> ?? new List<AuditLog>();
+    var dict = settings.ToDictionary(s => s.Key, s => s.Value);
+    string Val(string key, string fallback = "") => dict.TryGetValue(key, out var v) ? v : fallback;
+}
 <div class="card">
-    <div class="card-header fw-bold">الإعدادات القابلة للتعديل</div>
+    <div class="card-head">
+        <div>
+            <h2>سياسة الحضور والرواتب</h2>
+            <div class="sub">هذه افتراضات سياسة الشركة القابلة للتعديل — وليست قواعد قانونية عامة.</div>
+        </div>
+    </div>
     <div class="card-body">
-        <form asp-action="Save" method="post">
-            <div class="table-responsive">
-                <table class="table">
-                    <thead><tr><th>المفتاح</th><th>القيمة</th><th>الوصف</th></tr></thead>
-                    <tbody>
-                    @foreach (var s in Model)
-                    {
-                        <tr>
-                            <td><code>@s.Key</code></td>
-                            <td><input type="text" name="values[@s.Key]" value="@s.Value" class="form-control" /></td>
-                            <td class="text-muted small">@s.Description</td>
-                        </tr>
-                    }
-                    </tbody>
-                </table>
+        <div class="alert alert-info">
+            <span>
+                القيم الحالية: الأجر اليومي = الراتب ÷ @(policy?.WorkDaysPerMonth ?? 30) —
+                أجر الساعة = الأجر اليومي ÷ @(policy?.WorkHoursPerDay ?? 8) —
+                معامل الإضافي = @(policy?.DefaultOvertimeMultiplier ?? 1m) (بدون مضاعفة).
+            </span>
+        </div>
+        <form method="post" asp-action="Save">
+            <div class="section-title">سياسة الأجر والإضافي</div>
+            <div class="form-grid">
+                <div class="field">
+                    <label>عدد أيام الشهر (للأجر اليومي)</label>
+                    <input type="number" name="values[@SettingKeys.WorkDaysPerMonth]" value="@Val(SettingKeys.WorkDaysPerMonth, "30")" min="1" max="31" />
+                    <span class="hint">الأجر اليومي = الراتب الأساسي ÷ هذا الرقم (افتراضي 30).</span>
+                </div>
+                <div class="field">
+                    <label>ساعات العمل اليومية</label>
+                    <input type="number" name="values[@SettingKeys.WorkHoursPerDay]" value="@Val(SettingKeys.WorkHoursPerDay, "8")" min="1" max="24" />
+                    <span class="hint">أجر الساعة = الأجر اليومي ÷ هذا الرقم (افتراضي 8).</span>
+                </div>
+                <div class="field">
+                    <label>معامل الإضافي</label>
+                    <input type="number" step="0.1" name="values[@SettingKeys.DefaultOvertimeMultiplier]" value="@Val(SettingKeys.DefaultOvertimeMultiplier, "1")" />
+                    <span class="hint">سياسة الشركة تفرض 1 — لا يُسمح بأي مضاعفة.</span>
+                </div>
+                <div class="field">
+                    <label>خطوة تقريب الإضافي (دقيقة)</label>
+                    <input type="number" name="values[@SettingKeys.OvertimeRoundingStepMinutes]" value="@Val(SettingKeys.OvertimeRoundingStepMinutes, "1")" min="1" max="120" />
+                    <span class="hint">1 = بدون تقريب. التقريب يُطبَّق مرة واحدة على إجمالي الشهر وليس على كل بصمة.</span>
+                </div>
+                <div class="field">
+                    <label>تقريب الإضافي للأسفل</label>
+                    <select name="values[@SettingKeys.RoundOvertimeDown]">
+                        <option value="true" selected="@(Val(SettingKeys.RoundOvertimeDown, "true") == "true")">نعم</option>
+                        <option value="false" selected="@(Val(SettingKeys.RoundOvertimeDown, "true") == "false")">لا (تقريب عادي)</option>
+                    </select>
+                </div>
+                <div class="field">
+                    <label>يتطلب اعتماد الإضافي قبل الصرف</label>
+                    <select name="values[@SettingKeys.RequireOvertimeApproval]">
+                        <option value="true" selected="@(Val(SettingKeys.RequireOvertimeApproval, "true") == "true")">نعم</option>
+                        <option value="false" selected="@(Val(SettingKeys.RequireOvertimeApproval, "true") == "false")">لا</option>
+                    </select>
+                </div>
             </div>
-            <button class="btn btn-primary">حفظ الإعدادات</button>
+
+            <div class="section-title">الخصومات</div>
+            <div class="form-grid">
+                <div class="field">
+                    <label>خصم التأخير</label>
+                    <select name="values[@SettingKeys.LateDeductionEnabled]">
+                        <option value="true" selected="@(policy?.LateDeductionEnabled == true)">مُفعّل</option>
+                        <option value="false" selected="@(policy?.LateDeductionEnabled == false)">معطّل</option>
+                    </select>
+                </div>
+                <div class="field">
+                    <label>خصم الغياب</label>
+                    <select name="values[@SettingKeys.AbsenceDeductionEnabled]">
+                        <option value="true" selected="@(policy?.AbsenceDeductionEnabled == true)">مُفعّل</option>
+                        <option value="false" selected="@(policy?.AbsenceDeductionEnabled == false)">معطّل</option>
+                    </select>
+                    <span class="hint">سعر اليوم = الأجر اليومي للموظف.</span>
+                </div>
+                <div class="field">
+                    <label>السماح باحتساب كشف بلا بيانات حضور</label>
+                    <select name="values[@SettingKeys.AllowPayrollWithoutAttendance]">
+                        <option value="false" selected="@(Val(SettingKeys.AllowPayrollWithoutAttendance, "false") == "false")">لا (موصى به)</option>
+                        <option value="true" selected="@(Val(SettingKeys.AllowPayrollWithoutAttendance, "false") == "true")">نعم</option>
+                    </select>
+                    <span class="hint">عند "لا" يُرفض احتساب الكشف لفترة لم تُعالَج فيها أي بيانات حضور.</span>
+                </div>
+                <div class="field">
+                    <label>خصم الإجازة بدون أجر</label>
+                    <select name="values[@SettingKeys.UnpaidLeaveDeductionEnabled]">
+                        <option value="true" selected="@(policy?.UnpaidLeaveDeductionEnabled == true)">مُفعّل</option>
+                        <option value="false" selected="@(policy?.UnpaidLeaveDeductionEnabled == false)">معطّل</option>
+                    </select>
+                </div>
+            </div>
+
+            <div class="section-title">الحضور والأيام</div>
+            <div class="form-grid">
+                <div class="field">
+                    <label>سماح الدخول الافتراضي (دقيقة)</label>
+                    <input type="number" name="values[@SettingKeys.EntryGraceMinutes]" value="@Val(SettingKeys.EntryGraceMinutes, "30")" min="0" max="240" />
+                </div>
+                <div class="field">
+                    <label>سماح الخروج الافتراضي (دقيقة)</label>
+                    <input type="number" name="values[@SettingKeys.ExitGraceMinutes]" value="@Val(SettingKeys.ExitGraceMinutes, "30")" min="0" max="240" />
+                </div>
+                <div class="field">
+                    <label>أقل مدة إضافي معتبرة (دقيقة)</label>
+                    <input type="number" name="values[@SettingKeys.MinimumOvertimeMinutes]" value="@Val(SettingKeys.MinimumOvertimeMinutes, "1")" min="1" max="240" />
+                </div>
+                <div class="field">
+                    <label>أيام الراحة الأسبوعية</label>
+                    <input type="text" name="values[@SettingKeys.WeeklyRestDays]" value="@Val(SettingKeys.WeeklyRestDays, "5")" />
+                    <span class="hint">أرقام الأيام مفصولة بفاصلة: 0=الأحد ... 5=الجمعة، 6=السبت. الجمعة هي الافتراضي.</span>
+                </div>
+                <div class="field">
+                    <label>رصيد الإجازة السنوية الافتراضي</label>
+                    <input type="number" name="values[@SettingKeys.AnnualLeaveEntitlementDays]" value="@Val(SettingKeys.AnnualLeaveEntitlementDays, "21")" min="0" max="365" />
+                </div>
+                <div class="field">
+                    <label>معالجة الحضور تلقائيًا بعد الاستيراد</label>
+                    <select name="values[@SettingKeys.AutoProcessAfterImport]">
+                        <option value="false" selected="@(Val(SettingKeys.AutoProcessAfterImport, "false") == "false")">لا (يدوي)</option>
+                        <option value="true" selected="@(Val(SettingKeys.AutoProcessAfterImport, "false") == "true")">نعم</option>
+                    </select>
+                </div>
+            </div>
+
+            <div class="section-title">الشركة والعملة</div>
+            <div class="form-grid">
+                <div class="field">
+                    <label>اسم الشركة (في التقارير)</label>
+                    <input type="text" name="values[@SettingKeys.CompanyName]" value="@Val(SettingKeys.CompanyName, "شركة الموارد البشرية")" />
+                </div>
+                <div class="field">
+                    <label>العملة</label>
+                    <input type="text" name="values[@SettingKeys.Currency]" value="@Val(SettingKeys.Currency, "EGP")" />
+                </div>
+                <div class="field">
+                    <label>المنطقة الزمنية</label>
+                    <input type="text" name="values[@SettingKeys.CompanyTimeZone]" value="@Val(SettingKeys.CompanyTimeZone, "Egypt Standard Time")" />
+                </div>
+            </div>
+
+            <div class="btn-row" style="margin-top:18px">
+                <button type="submit" class="btn btn-primary btn-lg">حفظ الإعدادات</button>
+            </div>
         </form>
     </div>
+</div>
+
+<div class="card">
+    <div class="card-head"><h3>آخر العمليات في سجل المراجعة</h3></div>
+    @if (logs.Count == 0)
+    {
+        ViewData["message"] = "لا توجد عمليات مسجلة بعد";
+        ViewData["icon"] = "📝";
+        <partial name="_Empty" />
+    }
+    else
+    {
+        <div class="table-wrap">
+            <table class="data">
+                <thead><tr><th>الوقت</th><th>المستخدم</th><th>العملية</th><th>الكيان</th><th>القيمة السابقة</th><th>القيمة الجديدة</th></tr></thead>
+                <tbody>
+                @foreach (var l in logs)
+                {
+                    <tr>
+                        <td class="num">@l.Timestamp.ToLocalTime().ToString("yyyy-MM-dd HH:mm")</td>
+                        <td>@(l.UserName ?? "-")</td>
+                        <td>@l.Action</td>
+                        <td>@(l.EntityName ?? "-")@(string.IsNullOrEmpty(l.EntityId) ? "" : $" #{l.EntityId}")</td>
+                        <td class="wrap">@(l.OldValue ?? "-")</td>
+                        <td class="wrap">@(l.NewValue ?? "-")</td>
+                    </tr>
+                }
+                </tbody>
+            </table>
+        </div>
+    }
 </div>
