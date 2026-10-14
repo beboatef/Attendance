@@ -65,6 +65,9 @@
     <div class="stat"><div class="label">⏱️ صفوف الإضافي</div><div class="value">@Model.OvertimeRowCount</div></div>
     <div class="stat"><div class="label">🚫 حالات الغياب/التأخير</div><div class="value">@Model.AbsenceRowCount</div></div>
     <div class="stat"><div class="label">🏢 الأقسام</div><div class="value">@Model.DepartmentRows.Count</div></div>
+    <div class="stat"><div class="label">🧩 مجموعات المسميات</div><div class="value">@Model.DepartmentJobTitleGroups</div></div>
+    <div class="stat"><div class="label">🌴 طلبات الإجازة</div><div class="value">@Model.LeaveRowCount</div></div>
+    <div class="stat"><div class="label">💰 أرصدة إجازات</div><div class="value">@Model.LeaveBalanceCount</div></div>
 </div>
 
 <div class="card">
@@ -96,9 +99,23 @@
                     <td>—</td>
                 </tr>
                 <tr>
-                    <td>ملخص الأقسام</td>
-                    <td class="wrap">من حضر، من غاب، من تأخر، ومن لديه بصمات ناقصة لكل قسم</td>
-                    <td><a class="btn btn-soft btn-sm" asp-action="Index" asp-all-route-data="q">أعلى الصفحة</a></td>
+                    <td>تقرير الأقسام والمسميات الوظيفية</td>
+                    <td class="wrap">تجميع حسب القسم ثم المسمى الوظيفي مع أسماء الموظفين وعدد الحاضرين والغائبين والمتأخرين لكل مجموعة</td>
+                    <td><a class="btn btn-soft btn-sm" asp-action="Departments" asp-all-route-data="q">عرض</a></td>
+                    <td><a class="btn btn-ghost btn-sm" asp-action="ExportDepartmentsExcel" asp-all-route-data="q">Excel</a></td>
+                    <td>—</td>
+                </tr>
+                <tr>
+                    <td>الإجازات والأرصدة</td>
+                    <td class="wrap">طلبات الإجازة داخل الفترة مع النوع والحالة، وأرصدة الإجازة السنوية المستحق والمستخدم والمتبقي لكل موظف</td>
+                    <td><a class="btn btn-soft btn-sm" asp-action="Leaves" asp-all-route-data="q">عرض</a></td>
+                    <td><a class="btn btn-ghost btn-sm" asp-action="ExportLeavesExcel" asp-all-route-data="q">Excel</a></td>
+                    <td>—</td>
+                </tr>
+                <tr>
+                    <td>ملخص الأقسام (مختصر)</td>
+                    <td class="wrap">من حضر، من غاب، من تأخر، ومن لديه بصمات ناقصة لكل قسم بدون تفصيل المسميات</td>
+                    <td>—</td>
                     <td><a class="btn btn-ghost btn-sm" asp-action="ExportDepartmentExcel" asp-all-route-data="q">Excel</a></td>
                     <td>—</td>
                 </tr>

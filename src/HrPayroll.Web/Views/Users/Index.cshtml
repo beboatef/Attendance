@@ -3,30 +3,57 @@
     ViewData["Title"] = "المستخدمون والصلاحيات";
     var rows = ViewBag.Roles as List<(ApplicationUser User, string Roles)> ?? new List<(ApplicationUser, string)>();
 }
-<div class="d-flex justify-content-between mb-3">
-    <h5 class="mb-0">المستخدمون</h5>
-    <a class="btn btn-success" asp-action="Create">إضافة مستخدم</a>
-</div>
 <div class="card">
-    <div class="table-responsive">
-        <table class="table table-striped mb-0">
-            <thead><tr><th>البريد</th><th>الاسم</th><th>الأدوار</th><th>الحالة</th><th></th></tr></thead>
-            <tbody>
-            @foreach (var r in rows)
-            {
-                <tr>
-                    <td>@r.User.Email</td>
-                    <td>@r.User.FullName</td>
-                    <td>@r.Roles</td>
-                    <td>@(r.User.IsActive ? "نشط" : "معطّل")</td>
-                    <td>
-                        <form asp-action="ToggleActive" asp-route-id="@r.User.Id" method="post" class="d-inline">
-                            <button class="btn btn-sm btn-outline-warning" type="submit">@(r.User.IsActive ? "تعطيل" : "تفعيل")</button>
-                        </form>
-                    </td>
-                </tr>
-            }
-            </tbody>
-        </table>
+    <div class="card-head">
+        <div>
+            <h2>المستخدمون والصلاحيات</h2>
+            <div class="sub">
+                الصلاحيات تُطبَّق على مستوى الخادم: مستخدم الموارد البشرية لا يستطيع تعديل المرتبات أو اعتمادها،
+                ومستخدم الشؤون المالية لا يستطيع تعديل بيانات الموظفين أو البصمات.
+            </div>
+        </div>
+        <a class="btn btn-primary btn-sm" asp-action="Create">+ إضافة مستخدم</a>
     </div>
+    @if (rows.Count == 0)
+    {
+        ViewData["message"] = "لا يوجد مستخدمون";
+        ViewData["icon"] = "🔐";
+        <partial name="_Empty" />
+    }
+    else
+    {
+        <div class="table-wrap">
+            <table class="data">
+                <thead>
+                <tr><th>البريد الإلكتروني</th><th>الاسم</th><th>الأدوار</th><th>الحالة</th><th></th></tr>
+                </thead>
+                <tbody>
+                @foreach (var r in rows)
+                {
+                    <tr>
+                        <td dir="ltr" class="wrap">@r.User.Email</td>
+                        <td>@r.User.FullName</td>
+                        <td>@(string.IsNullOrWhiteSpace(r.Roles) ? "—" : r.Roles)</td>
+                        <td>
+                            @if (r.User.IsActive)
+                            {
+                                <span class="badge ok">نشط</span>
+                            }
+                            else
+                            {
+                                <span class="badge muted">معطّل</span>
+                            }
+                        </td>
+                        <td class="btn-row">
+                            <form method="post" asp-action="ToggleActive" asp-route-id="@r.User.Id"
+                                  data-confirm="@(r.User.IsActive ? "تعطيل هذا المستخدم؟ لن يستطيع تسجيل الدخول بعد ذلك." : "تفعيل هذا المستخدم؟")">
+                                <button type="submit" class="btn btn-ghost btn-sm">@(r.User.IsActive ? "تعطيل" : "تفعيل")</button>
+                            </form>
+                        </td>
+                    </tr>
+                }
+                </tbody>
+            </table>
+        </div>
+    }
 </div>

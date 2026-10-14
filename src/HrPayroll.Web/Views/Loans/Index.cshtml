@@ -1,36 +1,75 @@
 @model List<Loan>
-@{ ViewData["Title"] = "السلف"; }
-<div class="d-flex justify-content-between mb-3">
-    <h5 class="mb-0">سلف الموظفين</h5>
-    <a class="btn btn-success" asp-action="Create">تسجيل سلفة</a>
-</div>
+@using HrPayroll.Domain.Enums
+@{
+    ViewData["Title"] = "السلف";
+    var totalApproved = Model.Where(l => l.Status == ApprovalStatus.Approved).Sum(l => l.Amount);
+}
 <div class="card">
-    <div class="table-responsive">
-        <table class="table table-striped mb-0">
-            <thead><tr><th>الموظف</th><th>التاريخ</th><th>المبلغ</th><th>شهر الخصم</th><th>أقساط</th><th>الحالة</th><th>مطبّقة في كشف؟</th><th>ملاحظات</th><th></th></tr></thead>
-            <tbody>
-            @foreach (var l in Model)
-            {
-                <tr>
-                    <td>@l.Employee?.FullName (@l.Employee?.EmployeeCode)</td>
-                    <td>@l.LoanDate.ToString("yyyy-MM-dd")</td>
-                    <td>@l.Amount.ToString("#,##0.00")</td>
-                    <td>@l.DeductionYear-@l.DeductionMonth.ToString("00")</td>
-                    <td>@l.Installments</td>
-                    <td>@(l.Status == ApprovalStatus.Approved ? "معتمدة" : l.Status == ApprovalStatus.Rejected ? "مرفوضة" : "قيد المراجعة")</td>
-                    <td>@(l.PayrollItemId.HasValue ? "نعم" : "لا")</td>
-                    <td>@l.Notes</td>
-                    <td class="text-nowrap">
-                        <a class="btn btn-sm btn-outline-primary" asp-action="Edit" asp-route-id="@l.Id">تعديل</a>
-                        <form asp-action="Approve" asp-route-id="@l.Id" method="post" class="d-inline">
-                            <button class="btn btn-sm btn-outline-success" type="submit">اعتماد/إلغاء</button>
-                        </form>
-                    </td>
-                </tr>
-            }
-            @if (!Model.Any())
-            { <tr><td colspan="9" class="text-center text-muted py-4">لا توجد سلف</td></tr> }
-            </tbody>
-        </table>
+    <div class="card-head">
+        <div>
+            <h2>سلف الموظفين</h2>
+            <div class="sub">
+                السلفة المعتمدة تُخصم من صافي الراتب في شهر الخصم المحدد، ولا تُخصم مرتين عند إعادة احتساب الكشف.
+            </div>
+        </div>
+        <a class="btn btn-primary btn-sm" asp-action="Create">+ تسجيل سلفة</a>
     </div>
+    @if (Model.Count == 0)
+    {
+        ViewData["message"] = "لا توجد سلف مسجَّلة";
+        ViewData["hint"] = "سجّل سلفة لموظف ثم اعتمدها لتُخصم من كشف راتبه.";
+        ViewData["icon"] = "💳";
+        <partial name="_Empty" />
+    }
+    else
+    {
+        <div class="stat-grid" style="padding:16px 16px 0">
+            <div class="stat"><div class="label">عدد السلف</div><div class="value">@Model.Count</div></div>
+            <div class="stat ok"><div class="label">إجمالي السلف المعتمدة</div><div class="value">@totalApproved.ToString("N2")</div></div>
+        </div>
+        <div class="table-wrap">
+            <table class="data">
+                <thead>
+                <tr>
+                    <th>الموظف</th><th>التاريخ</th><th>المبلغ</th><th>شهر الخصم</th><th>الأقساط</th>
+                    <th>الحالة</th><th>مطبّقة في كشف؟</th><th>ملاحظات</th><th></th>
+                </tr>
+                </thead>
+                <tbody>
+                @foreach (var l in Model)
+                {
+                    var cls = l.Status switch
+                    {
+                        ApprovalStatus.Approved => "ok",
+                        ApprovalStatus.Rejected => "bad",
+                        _ => "warn"
+                    };
+                    var statusText = l.Status switch
+                    {
+                        ApprovalStatus.Approved => "معتمدة",
+                        ApprovalStatus.Rejected => "مرفوضة",
+                        _ => "قيد المراجعة"
+                    };
+                    <tr>
+                        <td>@l.Employee?.FullName <span class="hint">@l.Employee?.EmployeeCode</span></td>
+                        <td class="num">@l.LoanDate.ToString("yyyy-MM-dd")</td>
+                        <td class="num money">@l.Amount.ToString("N2")</td>
+                        <td class="num">@l.DeductionYear-@l.DeductionMonth.ToString("00")</td>
+                        <td class="num">@l.Installments</td>
+                        <td><span class="badge @cls">@statusText</span></td>
+                        <td>@(l.PayrollItemId.HasValue ? "نعم" : "لا")</td>
+                        <td class="wrap">@(string.IsNullOrWhiteSpace(l.Notes) ? "—" : l.Notes)</td>
+                        <td class="btn-row">
+                            <a class="btn btn-soft btn-sm" asp-action="Edit" asp-route-id="@l.Id">تعديل</a>
+                            <form method="post" asp-action="Approve" asp-route-id="@l.Id"
+                                  data-confirm="تغيير حالة اعتماد السلفة؟ سيؤثر ذلك على خصم الراتب.">
+                                <button type="submit" class="btn btn-ghost btn-sm">اعتماد/إلغاء</button>
+                            </form>
+                        </td>
+                    </tr>
+                }
+                </tbody>
+            </table>
+        </div>
+    }
 </div>

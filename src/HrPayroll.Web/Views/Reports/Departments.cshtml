@@ -1,0 +1,173 @@
+@using HrPayroll.Domain.Enums
+@model HrPayroll.Web.ViewModels.DepartmentReportViewModel
+@{
+    ViewData["Title"] = "تقارير الأقسام";
+    var f = Model.Filter;
+    var q = new Dictionary<string, string>
+    {
+        ["from"] = f.From.ToString("yyyy-MM-dd"),
+        ["to"] = f.To.ToString("yyyy-MM-dd"),
+        ["department"] = f.Department ?? string.Empty,
+        ["jobTitle"] = Model.JobTitle ?? string.Empty,
+        ["employeeId"] = f.EmployeeId?.ToString() ?? string.Empty,
+        ["shiftId"] = f.ShiftId?.ToString() ?? string.Empty,
+        ["search"] = f.Search ?? string.Empty
+    };
+}
+
+<div class="card">
+    <div class="card-head">
+        <div>
+            <h2>تقرير الأقسام والمسميات الوظيفية</h2>
+            <div class="sub">
+                @f.PeriodText — تجميع حسب القسم ثم المسمى الوظيفي مع أسماء الموظفين الفعلية من بيانات الحضور.
+                @if (!string.IsNullOrWhiteSpace(Model.JobTitle)) { <span>· المسمى المحدد: @Model.JobTitle</span> }
+            </div>
+        </div>
+        <div class="btn-row no-print">
+            <button type="button" class="btn btn-soft btn-sm" data-expand-all=".dept-block details">عرض التفاصيل</button>
+            <button type="button" class="btn btn-ghost btn-sm" data-collapse-all=".dept-block details">طي التفاصيل</button>
+            <a class="btn btn-soft btn-sm" asp-action="ExportDepartmentsExcel" asp-all-route-data="q">تصدير Excel</a>
+            <button type="button" class="btn btn-ghost btn-sm" data-print data-print-expand=".dept-block details">طباعة التقرير</button>
+            <a class="btn btn-ghost btn-sm" asp-controller="Attendance" asp-action="Index">الحضور اليومي</a>
+        </div>
+    </div>
+    <div class="card-body">
+        <form method="get" class="filters no-print">
+            <div class="field"><label>من تاريخ</label><input type="date" name="from" value="@f.From.ToString("yyyy-MM-dd")" /></div>
+            <div class="field"><label>إلى تاريخ</label><input type="date" name="to" value="@f.To.ToString("yyyy-MM-dd")" /></div>
+            <div class="field">
+                <label>القسم</label>
+                <select name="department">
+                    <option value="">كل الأقسام</option>
+                    @foreach (var d in Model.Departments)
+                    {
+                        <option value="@d.Name" selected="@(f.Department == d.Name)">@d.Name</option>
+                    }
+                </select>
+            </div>
+            <div class="field">
+                <label>المسمى الوظيفي</label>
+                <select name="jobTitle">
+                    <option value="">كل المسميات</option>
+                    @foreach (var jt in Model.JobTitles)
+                    {
+                        <option value="@jt" selected="@(Model.JobTitle == jt)">@jt</option>
+                    }
+                </select>
+            </div>
+            <div class="field">
+                <label>الموظف</label>
+                <select name="employeeId">
+                    <option value="">كل الموظفين</option>
+                    @foreach (var e in Model.Employees)
+                    {
+                        <option value="@e.Id" selected="@(f.EmployeeId == e.Id)">@e.EmployeeCode — @e.FullName</option>
+                    }
+                </select>
+            </div>
+            <div class="field">
+                <label>بحث</label>
+                <input type="text" name="search" value="@f.Search" placeholder="اسم أو كود" />
+            </div>
+            <div class="field actions">
+                <button type="submit" class="btn btn-primary">عرض التقرير</button>
+                <a class="btn btn-ghost" asp-action="Departments">إعادة الضبط</a>
+            </div>
+        </form>
+    </div>
+</div>
+
+<div class="stat-grid">
+    <div class="stat"><div class="label">🏢 الأقسام</div><div class="value">@Model.DepartmentCount</div></div>
+    <div class="stat"><div class="label">🧩 مجموعات المسميات</div><div class="value">@Model.JobTitleGroups</div></div>
+    <div class="stat"><div class="label">👥 إجمالي الموظفين</div><div class="value">@Model.TotalEmployees</div></div>
+    <div class="stat ok"><div class="label">✅ حاضرون</div><div class="value">@Model.TotalPresent</div></div>
+    <div class="stat bad"><div class="label">🚫 غائبون</div><div class="value">@Model.TotalAbsent</div></div>
+    <div class="stat warn"><div class="label">⏰ متأخرون</div><div class="value">@Model.TotalLate</div></div>
+</div>
+
+@if (Model.Rows.Count == 0)
+{
+    ViewData["message"] = "لا توجد بيانات حضور للفترة أو المرشحات المحددة";
+    ViewData["hint"] = "غيّر التاريخ أو أزل الفلاتر، ثم اضغط «عرض التقرير».";
+    ViewData["icon"] = "🏢";
+    <div class="card">
+        <partial name="_Empty" />
+    </div>
+}
+else
+{
+    foreach (var d in Model.Rows)
+    {
+        <section class="card dept-block">
+            <div class="card-head dept-head">
+                <div>
+                    <h3>@d.Department</h3>
+                    <div class="sub">
+                        @d.JobTitles.Count مسمى وظيفي · @d.AttendanceRecords سجل حضور
+                    </div>
+                </div>
+                <div class="dept-kpis">
+                    <span class="kpi ok">حاضرون: <b>@d.PresentEmployees</b></span>
+                    <span class="kpi bad">غائبون: <b>@d.AbsentEmployees</b></span>
+                    <span class="kpi warn">متأخرون: <b>@d.LateEmployees</b></span>
+                    <span class="kpi">إجازات: <b>@d.OnLeaveEmployees</b></span>
+                    <span class="kpi">إجمالي الموظفين: <b>@d.TotalEmployees</b></span>
+                </div>
+            </div>
+
+            <div class="jt-table">
+                <div class="jt-row jt-thead" role="row">
+                    <span class="jt-name">المسمى الوظيفي</span>
+                    <span class="num">عدد الموظفين</span>
+                    <span class="num">حضور</span>
+                    <span class="num">غياب</span>
+                    <span class="num">تأخير</span>
+                    <span class="num">إجازات</span>
+                    <span class="jt-act no-print">الأسماء</span>
+                </div>
+
+                @foreach (var jt in d.JobTitles)
+                {
+                    <details class="jt-group">
+                        <summary class="jt-row">
+                            <span class="jt-name">@jt.JobTitle</span>
+                            <span class="num">@jt.EmployeeCount</span>
+                            <span class="num">@jt.PresentEmployees</span>
+                            <span class="num">@jt.AbsentEmployees</span>
+                            <span class="num">@jt.LateEmployees</span>
+                            <span class="num">@jt.OnLeaveEmployees</span>
+                            <span class="jt-act">عرض الأسماء (@jt.EmployeeCount)</span>
+                        </summary>
+
+                        <div class="jt-emps">
+                            <table class="data">
+                                <thead>
+                                <tr>
+                                    <th>كود الموظف</th><th>اسم الموظف</th><th>سجلات الحضور</th>
+                                    <th>أيام حضور</th><th>أيام غياب</th><th>دقائق التأخير</th><th>إضافي معتمد (ساعة)</th>
+                                </tr>
+                                </thead>
+                                <tbody>
+                                @foreach (var e in jt.Employees)
+                                {
+                                    <tr>
+                                        <td class="num">@e.EmployeeCode</td>
+                                        <td>@e.EmployeeName</td>
+                                        <td class="num">@e.AttendanceRecords</td>
+                                        <td class="num">@e.PresentRecords</td>
+                                        <td class="num">@e.AbsentRecords</td>
+                                        <td class="num">@e.LateMinutes</td>
+                                        <td class="num">@e.ApprovedOvertimeHours</td>
+                                    </tr>
+                                }
+                                </tbody>
+                            </table>
+                        </div>
+                    </details>
+                }
+            </div>
+        </section>
+    }
+}

@@ -15,9 +15,21 @@
 
     @if (showDemoHint)
     {
+        var demoEmail = ViewData["DemoAdminEmail"] as string;
         <div class="auth-demo-hint" role="note">
             <strong>بيئة تطوير محلية</strong>
-            <span>حساب تجريبي: <span dir="ltr">admin@hr.local</span> — كلمة المرور موثّقة في ملف الإعداد المحلي.</span>
+            @if (!string.IsNullOrWhiteSpace(demoEmail))
+            {
+                <span>
+                    حساب تجريبي: <span dir="ltr">@demoEmail</span> — كلمة المرور تُضبط في إعدادات التطوير المحلية
+                    (<span dir="ltr">Seed:AdminPassword</span>) أو تُطبع مرة واحدة في سجل بدء التشغيل عند أول إنشاء.
+                    لا تُنشأ أي بيانات اعتماد افتراضية في بيئة الإنتاج.
+                </span>
+            }
+            else
+            {
+                <span>لم يُضبط حساب تجريبي بعد. راجع سجل بدء التشغيل لمعرفة كيفية إنشاء أول مسؤول.</span>
+            }
         </div>
     }
 

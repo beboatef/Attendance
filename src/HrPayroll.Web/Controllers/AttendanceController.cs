@@ -19,10 +19,12 @@ public class AttendanceController : Controller
     private readonly AttendanceCorrectionService _corrections;
     private readonly ExcelExportService _excel;
     private readonly PdfExportService _pdf;
+    private readonly ILogger<AttendanceController> _logger;
 
     public AttendanceController(
         AppDbContext db, AttendanceProcessingService processing, ReportService reports,
-        AttendanceCorrectionService corrections, ExcelExportService excel, PdfExportService pdf)
+        AttendanceCorrectionService corrections, ExcelExportService excel, PdfExportService pdf,
+        ILogger<AttendanceController> logger)
     {
         _db = db;
         _processing = processing;
@@ -30,6 +32,7 @@ public class AttendanceController : Controller
         _corrections = corrections;
         _excel = excel;
         _pdf = pdf;
+        _logger = logger;
     }
 
     private AttendanceReportFilter BuildFilter(DateTime? from, DateTime? to, string? department, int? employeeId,
@@ -167,7 +170,7 @@ public class AttendanceController : Controller
         }
         catch (Exception ex)
         {
-            TempData["Error"] = "تعذّرت معالجة الحضور: " + ex.Message;
+            TempData["Error"] = ex.UserMessage(_logger, "فشلت معالجة الحضور");
         }
 
         return RedirectToAction(nameof(Index), new { from = f.ToString("yyyy-MM-dd"), to = t.ToString("yyyy-MM-dd") });
