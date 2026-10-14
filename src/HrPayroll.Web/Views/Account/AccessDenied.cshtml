@@ -1,6 +1,18 @@
-@{ ViewData["Title"] = "غير مصرح"; }
-<div class="alert alert-danger">
-    <h5>ليست لديك صلاحية للوصول إلى هذه الصفحة</h5>
-    <p class="mb-0">تواصل مع مدير النظام لمنحك الصلاحية المناسبة.</p>
+@{
+    ViewData["Title"] = "غير مصرح";
+    Layout = "_AuthLayout";
+}
+<div class="auth-card">
+    <div class="auth-card-head">
+        <h1>ليست لديك صلاحية</h1>
+        <p>هذا الحساب لا يملك الصلاحية اللازمة للوصول إلى هذه الصفحة.</p>
+    </div>
+    <div class="auth-alert" role="alert">
+        <span class="auth-alert-ico">🚫</span>
+        <span>تواصل مع مدير النظام لمنحك الصلاحية المناسبة، أو عد إلى الصفحة الرئيسية.</span>
+    </div>
+    <div class="btn-row">
+        <a class="btn btn-primary" asp-controller="Dashboard" asp-action="Index">العودة للوحة التحكم</a>
+        <a class="btn btn-ghost" asp-controller="Account" asp-action="Login">تسجيل الدخول بحساب آخر</a>
+    </div>
 </div>
-<a class="btn btn-primary" asp-controller="Dashboard" asp-action="Index">العودة للوحة التحكم</a>

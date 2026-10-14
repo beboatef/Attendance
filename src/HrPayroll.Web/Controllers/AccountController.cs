@@ -10,18 +10,23 @@ public class AccountController : Controller
 {
     private readonly SignInManager<ApplicationUser> _signInManager;
     private readonly UserManager<ApplicationUser> _userManager;
+    private readonly IWebHostEnvironment _env;
 
-    public AccountController(SignInManager<ApplicationUser> signInManager, UserManager<ApplicationUser> userManager)
+    public AccountController(
+        SignInManager<ApplicationUser> signInManager,
+        UserManager<ApplicationUser> userManager,
+        IWebHostEnvironment env)
     {
         _signInManager = signInManager;
         _userManager = userManager;
+        _env = env;
     }
 
     [AllowAnonymous]
     [HttpGet]
     public IActionResult Login(string? returnUrl = null)
     {
-        ViewData["ReturnUrl"] = returnUrl;
+        PrepareLoginViewData(returnUrl);
         return View(new LoginViewModel());
     }
 
@@ -30,7 +35,7 @@ public class AccountController : Controller
     [ValidateAntiForgeryToken]
     public async Task<IActionResult> Login(LoginViewModel model, string? returnUrl = null)
     {
-        ViewData["ReturnUrl"] = returnUrl;
+        PrepareLoginViewData(returnUrl);
         if (!ModelState.IsValid) return View(model);
 
         var user = await _userManager.FindByEmailAsync(model.Email);
@@ -49,6 +54,13 @@ public class AccountController : Controller
 
         if (!string.IsNullOrEmpty(returnUrl) && Url.IsLocalUrl(returnUrl)) return Redirect(returnUrl);
         return RedirectToAction("Index", "Dashboard");
+    }
+
+    /// <summary>تلميح الحساب التجريبي يُعرض في بيئة التطوير فقط — لا تظهر أي بيانات دخول في الإنتاج.</summary>
+    private void PrepareLoginViewData(string? returnUrl)
+    {
+        ViewData["ReturnUrl"] = returnUrl;
+        ViewData["ShowDemoHint"] = _env.IsDevelopment();
     }
 
     [HttpPost]

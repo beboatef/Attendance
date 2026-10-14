@@ -5,7 +5,70 @@
     ViewData["Title"] = "لوحة التحكم";
     var currency = ViewBag.Currency as string ?? "EGP";
     var months = new[] { "يناير","فبراير","مارس","أبريل","مايو","يونيو","يوليو","أغسطس","سبتمبر","أكتوبر","نوفمبر","ديسمبر" };
+
+    // الخطوة التالية الموصى بها — محسوبة من بيانات قاعدة البيانات الفعلية بلا قيم ثابتة.
+    string nsTitle, nsDesc, nsUrl, nsBtn, nsIcon, nsTone;
+    if (Model.ActiveEmployees == 0)
+    {
+        nsIcon = "👥"; nsTone = "warn";
+        nsTitle = "ابدأ بإضافة الموظفين";
+        nsDesc = "لا يوجد موظفون نشطون بعد. أضف الموظفين يدويًا أو استوردهم من ملف Excel قبل تسجيل الحضور.";
+        nsUrl = Url.Action("Import", "Employees")!; nsBtn = "استيراد الموظفين من Excel";
+    }
+    else if (Model.LatestImports.Count == 0)
+    {
+        nsIcon = "📄"; nsTone = "info";
+        nsTitle = "استورد ملفات بصمات الحضور";
+        nsDesc = "تم تسجيل الموظفين، لكن لم يُستورد أي ملف بصمات بعد. ابدأ باستيراد ملفي الدخول والخروج لهذا الشهر.";
+        nsUrl = Url.Action("Index", "Import")!; nsBtn = "استيراد البصمات";
+    }
+    else if (Model.DaysWithoutData > 0)
+    {
+        nsIcon = "🕒"; nsTone = "warn";
+        nsTitle = "عالج حضور اليوم";
+        nsDesc = $"يوجد {Model.ActiveEmployees} موظفًا نشطًا بلا بيانات حضور مسجّلة لهذا اليوم. تأكد من استيراد بصمات اليوم ثم عالج الحضور.";
+        nsUrl = Url.Action("Index", "Attendance")!; nsBtn = "معالجة الحضور";
+    }
+    else if (Model.NeedsReview > 0 || Model.MissingPunches > 0)
+    {
+        nsIcon = "🔍"; nsTone = "bad";
+        nsTitle = "راجع الاستثناءات والبصمات الناقصة";
+        nsDesc = $"يوجد {Model.NeedsReview} سجلًا يحتاج مراجعة و{Model.MissingPunches} بصمة ناقصة. عالجها قبل احتساب الرواتب.";
+        nsUrl = Url.Action("Exceptions", "Attendance")!; nsBtn = "مراجعة الاستثناءات";
+    }
+    else if (Model.PendingOvertimeApprovals > 0)
+    {
+        nsIcon = "⏱️"; nsTone = "warn";
+        nsTitle = "اعتمد ساعات الإضافي";
+        nsDesc = $"يوجد {Model.PendingOvertimeApprovals} يومًا بإضافي خام بانتظار الاعتماد. الإضافي غير المعتمد لا يُضاف إلى الراتب.";
+        nsUrl = Url.Action("Index", "Overtime")!; nsBtn = "اعتماد الإضافي";
+    }
+    else if (Model.PayrollItemCount == 0)
+    {
+        nsIcon = "💰"; nsTone = "info";
+        nsTitle = "احتسب كشف المرتبات";
+        nsDesc = "بيانات الحضور جاهزة. انتقل إلى كشف المرتبات الشهري ثم اضغط «تحديث الحسابات» لإنشاء الكشف.";
+        nsUrl = Url.Action("Index", "Payroll", new { month = Model.Month, year = Model.Year })!; nsBtn = "فتح كشف المرتبات";
+    }
+    else
+    {
+        nsIcon = "✅"; nsTone = "ok";
+        nsTitle = "الكشف جاهز للمراجعة";
+        nsDesc = "تم احتساب كشف هذا الشهر. راجع الأسطر والتعديلات اليدوية ثم اعتمد الكشف أو اطبعه.";
+        nsUrl = Url.Action("Index", "Payroll", new { month = Model.Month, year = Model.Year })!; nsBtn = "مراجعة كشف المرتبات";
+    }
 }
+
+<div class="next-step @nsTone">
+    <div class="next-step-ico" aria-hidden="true">@nsIcon</div>
+    <div class="next-step-body">
+        <div class="next-step-k">الخطوة التالية</div>
+        <h3>@nsTitle</h3>
+        <p>@nsDesc</p>
+    </div>
+    <a class="btn btn-primary next-step-btn" href="@nsUrl">@nsBtn</a>
+</div>
+
 <div class="card">
     <div class="card-head">
         <div>

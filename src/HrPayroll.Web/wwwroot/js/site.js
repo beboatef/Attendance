@@ -124,4 +124,20 @@
             group.forEach(function (cb) { cb.checked = master.checked; });
         });
     });
+
+    // ---------- إظهار/إخفاء كلمة المرور (صفحة الدخول) ----------
+    document.querySelectorAll('[data-pw-toggle]').forEach(function (btn) {
+        var input = document.getElementById(btn.dataset.pwToggle);
+        if (!input) return;
+        btn.addEventListener('click', function () {
+            var showing = input.type === 'text';
+            input.type = showing ? 'password' : 'text';
+            btn.classList.toggle('is-on', !showing);
+            btn.setAttribute('aria-pressed', showing ? 'false' : 'true');
+            var label = showing ? 'إظهار كلمة المرور' : 'إخفاء كلمة المرور';
+            btn.setAttribute('aria-label', label);
+            btn.setAttribute('title', label);
+            input.focus();
+        });
+    });
 })();
