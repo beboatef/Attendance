@@ -1,19 +1,58 @@
 @model CreateUserViewModel
-@{ ViewData["Title"] = "إضافة مستخدم"; }
+@{
+    ViewData["Title"] = "إضافة مستخدم";
+}
 <div class="card">
+    <div class="card-head">
+        <div>
+            <h2>إضافة مستخدم جديد</h2>
+            <div class="sub">كلمة المرور يجب أن تكون 8 أحرف على الأقل وتحتوي حرفًا كبيرًا وحرفًا صغيرًا ورقمًا.</div>
+        </div>
+        <a class="btn btn-ghost btn-sm" asp-action="Index">رجوع للقائمة</a>
+    </div>
     <div class="card-body">
-        <form asp-action="Create" method="post" class="row g-3">
-            <div asp-validation-summary="ModelOnly" class="text-danger"></div>
-            <div class="col-md-6"><label asp-for="FullName" class="form-label"></label><input asp-for="FullName" class="form-control" /><span asp-validation-for="FullName" class="text-danger"></span></div>
-            <div class="col-md-6"><label asp-for="Email" class="form-label"></label><input asp-for="Email" class="form-control" /><span asp-validation-for="Email" class="text-danger"></span></div>
-            <div class="col-md-6"><label asp-for="Password" class="form-label"></label><input asp-for="Password" class="form-control" /><span asp-validation-for="Password" class="text-danger"></span></div>
-            <div class="col-md-6"><label asp-for="Role" class="form-label"></label><select asp-for="Role" asp-items="ViewBag.RoleList" class="form-select"></select></div>
-            <div class="col-12 form-check ms-2"><input asp-for="IsActive" class="form-check-input" /><label asp-for="IsActive" class="form-check-label"></label></div>
-            <div class="col-12 d-flex gap-2">
-                <button class="btn btn-primary">إنشاء</button>
-                <a class="btn btn-secondary" asp-action="Index">إلغاء</a>
+        <form method="post" asp-action="Create">
+            <div asp-validation-summary="ModelOnly" class="alert alert-danger"
+                 style="display:@(ViewData.ModelState.ErrorCount > 0 ? "flex" : "none")"></div>
+
+            <div class="form-grid">
+                <div class="field">
+                    <label asp-for="FullName"></label>
+                    <input asp-for="FullName" />
+                    <span asp-validation-for="FullName" class="field-error"></span>
+                </div>
+                <div class="field">
+                    <label asp-for="Email"></label>
+                    <input asp-for="Email" dir="ltr" placeholder="name@company.com" />
+                    <span asp-validation-for="Email" class="field-error"></span>
+                </div>
+                <div class="field">
+                    <label asp-for="Password"></label>
+                    <input asp-for="Password" dir="ltr" autocomplete="new-password" />
+                    <span asp-validation-for="Password" class="field-error"></span>
+                </div>
+                <div class="field">
+                    <label asp-for="Role"></label>
+                    <select asp-for="Role" asp-items="ViewBag.RoleList"></select>
+                    <span class="hint">
+                        Admin: كل الصلاحيات · HR: الموظفون والحضور والإجازات · Accountant: المرتبات والسلف ·
+                        Viewer: عرض التقارير فقط.
+                    </span>
+                </div>
+                <div class="field">
+                    <label class="switch">
+                        <input asp-for="IsActive" />
+                        <span>نشط (يستطيع تسجيل الدخول)</span>
+                    </label>
+                </div>
+            </div>
+
+            <div class="btn-row" style="margin-top:20px">
+                <button type="submit" class="btn btn-primary btn-lg">إنشاء المستخدم</button>
+                <a class="btn btn-ghost btn-lg" asp-action="Index">إلغاء</a>
             </div>
         </form>
     </div>
 </div>
+
 @section Scripts { <partial name="_ValidationScriptsPartial" /> }

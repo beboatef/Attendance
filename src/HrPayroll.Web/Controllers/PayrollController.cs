@@ -18,9 +18,11 @@ public class PayrollController : Controller
     private readonly ExcelExportService _excel;
     private readonly PdfExportService _pdf;
     private readonly PayrollSheetService _sheet;
+    private readonly ILogger<PayrollController> _logger;
 
     public PayrollController(AppDbContext db, PayrollService payroll, ReportService reports,
-        ExcelExportService excel, PdfExportService pdf, PayrollSheetService sheet)
+        ExcelExportService excel, PdfExportService pdf, PayrollSheetService sheet,
+        ILogger<PayrollController> logger)
     {
         _db = db;
         _payroll = payroll;
@@ -28,6 +30,7 @@ public class PayrollController : Controller
         _excel = excel;
         _pdf = pdf;
         _sheet = sheet;
+        _logger = logger;
     }
 
     private static readonly string[] MonthNames =
@@ -148,7 +151,7 @@ public class PayrollController : Controller
         }
         catch (Exception ex)
         {
-            return Json(new { ok = false, error = ex.Message });
+            return Json(new { ok = false, error = ex.UserMessage(_logger, "فشل حفظ تعديلات كشف المرتبات") });
         }
     }
 
@@ -224,7 +227,7 @@ public class PayrollController : Controller
         }
         catch (Exception ex)
         {
-            TempData["Error"] = ex.Message;
+            TempData["Error"] = ex.UserMessage(_logger, "فشل احتساب كشف المرتبات");
         }
         return RedirectToAction(nameof(Index), new { year, month });
     }
@@ -238,7 +241,7 @@ public class PayrollController : Controller
             await _payroll.MarkPendingReviewAsync(id, this.CurrentUserName(), this.CurrentUserId(), ct);
             TempData["Success"] = "تم إرسال الكشف للمراجعة.";
         }
-        catch (Exception ex) { TempData["Error"] = ex.Message; }
+        catch (Exception ex) { TempData["Error"] = ex.UserMessage(_logger, "فشل تنفيذ عملية على كشف المرتبات"); }
         return RedirectToAction(nameof(Index), new { year, month });
     }
 
@@ -251,7 +254,7 @@ public class PayrollController : Controller
             await _payroll.ApproveAsync(id, this.CurrentUserName(), this.CurrentUserId(), ct);
             TempData["Success"] = "تم اعتماد الكشف.";
         }
-        catch (Exception ex) { TempData["Error"] = ex.Message; }
+        catch (Exception ex) { TempData["Error"] = ex.UserMessage(_logger, "فشل تنفيذ عملية على كشف المرتبات"); }
         return RedirectToAction(nameof(Index), new { year, month });
     }
 
@@ -264,7 +267,7 @@ public class PayrollController : Controller
             await _payroll.LockAsync(id, this.CurrentUserName(), this.CurrentUserId(), ct);
             TempData["Success"] = "تم قفل الكشف. لن يتأثر بأي استيراد بصمات لاحق بدون إعادة فتح بسبب مُسجَّل.";
         }
-        catch (Exception ex) { TempData["Error"] = ex.Message; }
+        catch (Exception ex) { TempData["Error"] = ex.UserMessage(_logger, "فشل تنفيذ عملية على كشف المرتبات"); }
         return RedirectToAction(nameof(Index), new { year, month });
     }
 
@@ -277,7 +280,7 @@ public class PayrollController : Controller
             await _payroll.ReopenAsync(id, reason, this.CurrentUserName(), this.CurrentUserId(), ct);
             TempData["Success"] = "تم إعادة فتح الكشف بسبب مُسجَّل. يمكن الآن التصحيح وإعادة الاحتساب.";
         }
-        catch (Exception ex) { TempData["Error"] = ex.Message; }
+        catch (Exception ex) { TempData["Error"] = ex.UserMessage(_logger, "فشل تنفيذ عملية على كشف المرتبات"); }
         return RedirectToAction(nameof(Index), new { year, month });
     }
 
@@ -290,7 +293,7 @@ public class PayrollController : Controller
             await _payroll.CancelAsync(id, this.CurrentUserName(), this.CurrentUserId(), ct);
             TempData["Success"] = "تم إلغاء الكشف.";
         }
-        catch (Exception ex) { TempData["Error"] = ex.Message; }
+        catch (Exception ex) { TempData["Error"] = ex.UserMessage(_logger, "فشل تنفيذ عملية على كشف المرتبات"); }
         return RedirectToAction(nameof(Index), new { year, month });
     }
 

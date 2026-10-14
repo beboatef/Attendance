@@ -675,3 +675,131 @@ input.auth-control::placeholder { color: #aab4c1; }
     .next-step { padding: 14px; gap: 12px; }
     .next-step-btn { width: 100%; }
 }
+
+/* ============================================================
+   صفحة رفع ملفات البصمة: منطقة الدخول ومنطقة الخروج
+   ============================================================ */
+.upload-grid {
+    display: grid; gap: 18px;
+    grid-template-columns: repeat(auto-fit, minmax(320px, 1fr));
+}
+
+.upload-zone {
+    display: flex; flex-direction: column;
+    background: var(--surface); border: 1px solid var(--line);
+    border-radius: var(--radius); box-shadow: var(--shadow-sm);
+    overflow: hidden;
+}
+.upload-zone.zone-entry { border-top: 3px solid var(--brand); }
+.upload-zone.zone-exit { border-top: 3px solid var(--accent); }
+
+.upload-zone-head {
+    display: flex; align-items: center; gap: 10px;
+    padding: 13px 14px; border-bottom: 1px solid var(--line-2);
+    background: #fbfcfe;
+}
+.upload-zone-ico {
+    flex: 0 0 34px; width: 34px; height: 34px; border-radius: 9px;
+    display: grid; place-items: center; font-size: 16px; background: var(--brand-50);
+}
+.zone-exit .upload-zone-ico { background: var(--accent-50); }
+.upload-zone-title { flex: 1 1 auto; min-width: 0; }
+.upload-zone-title h3 { font-size: 14.5px; }
+.upload-zone-title .hint { margin-top: 1px; }
+
+.file-state {
+    flex: 0 0 auto; font-size: 11.5px; font-weight: 700; white-space: nowrap;
+    padding: 4px 9px; border-radius: 999px;
+    background: var(--line-2); color: var(--ink-3); border: 1px solid var(--line);
+}
+.file-state.ok { background: var(--accent-50); color: #10614b; border-color: #bfe4d6; }
+.file-state.bad { background: var(--danger-50); color: #8f1f31; border-color: #f0c6cc; }
+.file-state.warn { background: var(--warn-50); color: #7c5312; border-color: #f0dcb4; }
+
+/* منطقة السحب/الاختيار: حقل الملف شفاف ويغطي الصندوق كله */
+.upload-drop {
+    position: relative; display: flex; flex-direction: column; align-items: center;
+    gap: 5px; text-align: center; cursor: pointer; margin: 14px 14px 0;
+    padding: 20px 16px; border: 1.5px dashed #c9d6e4; border-radius: var(--radius-sm);
+    background: #fcfdff; transition: border-color .15s, background .15s;
+}
+.upload-drop:hover, .upload-drop:focus-within { border-color: var(--brand); background: var(--brand-50); }
+.zone-exit .upload-drop:hover, .zone-exit .upload-drop:focus-within { border-color: var(--accent); background: var(--accent-50); }
+.upload-drop input[type=file] {
+    position: absolute; inset: 0; width: 100%; height: 100%;
+    opacity: 0; cursor: pointer; margin: 0;
+}
+.upload-drop-ico { font-size: 22px; line-height: 1; }
+.upload-drop-cta { font-size: 14px; font-weight: 700; color: var(--brand-700); }
+.zone-exit .upload-drop-cta { color: #10614b; }
+.upload-drop-hint { font-size: 11.5px; color: var(--ink-3); }
+.upload-zone.has-file .upload-drop { border-style: solid; border-color: #bfe4d6; background: var(--accent-50); }
+.upload-zone.has-file .upload-drop-hint { display: none; }
+
+.upload-meta { list-style: none; margin: 12px 14px 0; padding: 0; }
+.upload-meta li {
+    display: flex; gap: 8px; justify-content: space-between;
+    font-size: 12.5px; padding: 6px 0; border-bottom: 1px dashed var(--line-2);
+}
+.upload-meta li:last-child { border-bottom: 0; }
+.upload-meta .k { color: var(--ink-3); flex: 0 0 auto; }
+.upload-meta .v { color: var(--ink); font-weight: 600; text-align: end; word-break: break-all; }
+
+.upload-submit {
+    display: flex; align-items: center; gap: 14px; flex-wrap: wrap;
+    margin-top: 18px; padding-top: 16px; border-top: 1px solid var(--line-2);
+}
+.upload-submit .hint { flex: 1 1 260px; max-width: 520px; }
+.upload-error { margin-top: 14px; }
+.card.zone-failed { border-color: #f0c6cc; }
+
+@media (max-width: 560px) {
+    .upload-zone-head { flex-wrap: wrap; }
+    .upload-submit .btn { width: 100%; }
+}
+
+/* ============================================================
+   تقرير الأقسام والمسميات الوظيفية (قسم ← مسمى ← أسماء الموظفين)
+   ============================================================ */
+.num.neg { color: var(--danger); font-weight: 700; }
+
+.dept-block { margin-bottom: 16px; }
+.dept-head { flex-wrap: wrap; gap: 10px; align-items: flex-start; }
+.dept-kpis { display: flex; gap: 8px; flex-wrap: wrap; }
+.kpi {
+    font-size: 11.5px; color: var(--ink-2); background: var(--line-2);
+    border: 1px solid var(--line); border-radius: 999px; padding: 4px 10px; white-space: nowrap;
+}
+.kpi b { font-variant-numeric: tabular-nums; }
+.kpi.ok { background: var(--accent-50); border-color: #bfe4d6; color: #10614b; }
+.kpi.bad { background: var(--danger-50); border-color: #f0c6cc; color: #8f1f31; }
+.kpi.warn { background: var(--warn-50); border-color: #f0dcb4; color: #7c5312; }
+
+.jt-table { border-top: 1px solid var(--line-2); }
+.jt-row {
+    display: grid; align-items: center; gap: 8px;
+    grid-template-columns: minmax(140px, 1.6fr) repeat(5, minmax(52px, .55fr)) minmax(120px, .9fr);
+    padding: 9px 14px; font-size: 12.5px; text-align: center;
+}
+.jt-row .jt-name { text-align: start; font-weight: 600; color: var(--ink); }
+.jt-thead {
+    background: #f7f9fc; color: var(--ink-3); font-weight: 700; font-size: 11.5px;
+    border-bottom: 1px solid var(--line-2);
+}
+.jt-thead .jt-name { text-align: start; color: var(--ink-3); }
+.jt-group { border-bottom: 1px solid var(--line-2); }
+.jt-group:last-child { border-bottom: 0; }
+.jt-group > summary { list-style: none; cursor: pointer; color: var(--ink-2); }
+.jt-group > summary::-webkit-details-marker { display: none; }
+.jt-group > summary:hover { background: var(--brand-50); }
+.jt-group[open] > summary { background: var(--brand-50); }
+.jt-act { color: var(--brand); font-size: 11.5px; font-weight: 600; }
+.jt-group > summary .jt-act::after { content: " ▾"; }
+.jt-group[open] > summary .jt-act::after { content: " ▴"; }
+.jt-emps { padding: 0 10px 12px; background: #fbfcfe; }
+
+@media (max-width: 760px) {
+    .jt-row { grid-template-columns: minmax(110px, 1.4fr) repeat(5, minmax(44px, .5fr)); }
+    .jt-act { grid-column: 1 / -1; text-align: start; }
+    .jt-thead .jt-act { display: none; }
+}

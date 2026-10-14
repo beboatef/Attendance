@@ -1,0 +1,204 @@
+@using HrPayroll.Domain.Enums
+@model HrPayroll.Web.ViewModels.LeaveReportViewModel
+@{
+    ViewData["Title"] = "تقرير الإجازات والأرصدة";
+    var f = Model.Filter;
+    var q = new Dictionary<string, string>
+    {
+        ["from"] = f.From.ToString("yyyy-MM-dd"),
+        ["to"] = f.To.ToString("yyyy-MM-dd"),
+        ["department"] = f.Department ?? string.Empty,
+        ["employeeId"] = f.EmployeeId?.ToString() ?? string.Empty,
+        ["leaveType"] = Model.LeaveType.HasValue ? ((int)Model.LeaveType.Value).ToString() : string.Empty,
+        ["status"] = Model.Status.HasValue ? ((int)Model.Status.Value).ToString() : string.Empty,
+        ["search"] = f.Search ?? string.Empty
+    };
+}
+
+<div class="card">
+    <div class="card-head">
+        <div>
+            <h2>تقرير الإجازات والأرصدة</h2>
+            <div class="sub">@f.PeriodText — طلبات الإجازة داخل الفترة وأرصدة الإجازة السنوية الفعلية من قاعدة البيانات.</div>
+        </div>
+        <div class="btn-row no-print">
+            <a class="btn btn-soft btn-sm" asp-action="ExportLeavesExcel" asp-all-route-data="q">تصدير Excel</a>
+            <button type="button" class="btn btn-ghost btn-sm" data-print>طباعة التقرير</button>
+            <a class="btn btn-ghost btn-sm" asp-controller="Leaves" asp-action="Index">إدارة الإجازات</a>
+        </div>
+    </div>
+    <div class="card-body">
+        <form method="get" class="filters no-print">
+            <div class="field"><label>من تاريخ</label><input type="date" name="from" value="@f.From.ToString("yyyy-MM-dd")" /></div>
+            <div class="field"><label>إلى تاريخ</label><input type="date" name="to" value="@f.To.ToString("yyyy-MM-dd")" /></div>
+            <div class="field">
+                <label>القسم</label>
+                <select name="department">
+                    <option value="">كل الأقسام</option>
+                    @foreach (var d in Model.Departments)
+                    {
+                        <option value="@d.Name" selected="@(f.Department == d.Name)">@d.Name</option>
+                    }
+                </select>
+            </div>
+            <div class="field">
+                <label>الموظف</label>
+                <select name="employeeId">
+                    <option value="">كل الموظفين</option>
+                    @foreach (var e in Model.Employees)
+                    {
+                        <option value="@e.Id" selected="@(f.EmployeeId == e.Id)">@e.EmployeeCode — @e.FullName</option>
+                    }
+                </select>
+            </div>
+            <div class="field">
+                <label>نوع الإجازة</label>
+                <select name="leaveType">
+                    <option value="">كل الأنواع</option>
+                    @foreach (var t in Enum.GetValues<LeaveType>())
+                    {
+                        <option value="@((int)t)" selected="@(Model.LeaveType == t)">@HrPayroll.Web.ViewModels.LeaveFormViewModel.LeaveTypeText(t)</option>
+                    }
+                </select>
+            </div>
+            <div class="field">
+                <label>الحالة</label>
+                <select name="status">
+                    <option value="">كل الحالات</option>
+                    @foreach (var s in Enum.GetValues<ApprovalStatus>())
+                    {
+                        <option value="@((int)s)" selected="@(Model.Status == s)">@StatusText(s)</option>
+                    }
+                </select>
+            </div>
+            <div class="field">
+                <label>بحث</label>
+                <input type="text" name="search" value="@f.Search" placeholder="اسم أو كود" />
+            </div>
+            <div class="field actions">
+                <button type="submit" class="btn btn-primary">عرض التقرير</button>
+                <a class="btn btn-ghost" asp-action="Leaves">إعادة الضبط</a>
+            </div>
+        </form>
+    </div>
+</div>
+
+<div class="stat-grid">
+    <div class="stat"><div class="label">📄 طلبات الإجازة</div><div class="value">@Model.Rows.Count</div></div>
+    <div class="stat warn"><div class="label">⏳ قيد المراجعة</div><div class="value">@Model.PendingCount</div></div>
+    <div class="stat ok"><div class="label">✅ أيام عمل معتمدة</div><div class="value">@Model.ApprovedWorkingDays</div></div>
+    <div class="stat"><div class="label">🧮 إجمالي الرصيد المستخدم</div><div class="value">@Model.TotalUsedBalance <small>يوم</small></div></div>
+    <div class="stat @(Model.NegativeBalanceCount > 0 ? "bad" : "ok")">
+        <div class="label">💰 إجمالي الرصيد المتبقي</div>
+        <div class="value">@Model.TotalRemainingBalance <small>يوم</small></div>
+        @if (Model.NegativeBalanceCount > 0)
+        {
+            <div class="hint">يوجد @Model.NegativeBalanceCount موظف برصيد سالب</div>
+        }
+    </div>
+</div>
+
+<div class="card">
+    <div class="card-head"><h3>طلبات الإجازة في الفترة</h3></div>
+    @if (Model.Rows.Count == 0)
+    {
+        ViewData["message"] = "لا توجد طلبات إجازة في الفترة أو المرشحات المحددة";
+        ViewData["hint"] = "غيّر التاريخ أو أزل الفلاتر ثم أعد العرض.";
+        ViewData["actionUrl"] = Url.Action("Index", "Leaves");
+        ViewData["actionText"] = "إدارة الإجازات";
+        ViewData["icon"] = "🌴";
+        <partial name="_Empty" />
+    }
+    else
+    {
+        <div class="table-wrap">
+            <table class="data">
+                <thead>
+                <tr>
+                    <th>كود</th><th>الاسم</th><th>القسم</th><th>النوع</th><th>من</th><th>إلى</th>
+                    <th>أيام الطلب</th><th>أيام العمل</th><th>مدفوعة</th><th>الحالة</th><th>المصدر</th>
+                    <th>الرصيد المتبقي</th><th>اعتمدها</th>
+                </tr>
+                </thead>
+                <tbody>
+                @foreach (var l in Model.Rows)
+                {
+                    var cls = l.Status switch
+                    {
+                        ApprovalStatus.Approved => "ok",
+                        ApprovalStatus.Rejected => "bad",
+                        _ => "warn"
+                    };
+                    <tr>
+                        <td class="num">@l.EmployeeCode</td>
+                        <td>@l.EmployeeName</td>
+                        <td>@(l.Department ?? "-")</td>
+                        <td>@HrPayroll.Web.ViewModels.LeaveFormViewModel.LeaveTypeText(l.LeaveType)</td>
+                        <td class="num">@l.StartDate.ToString("yyyy-MM-dd")</td>
+                        <td class="num">@l.EndDate.ToString("yyyy-MM-dd")</td>
+                        <td class="num">@l.DaysCount</td>
+                        <td class="num">@l.WorkingDays</td>
+                        <td>@(l.IsPaid ? "نعم" : "لا")</td>
+                        <td><span class="badge @cls">@StatusText(l.Status)</span></td>
+                        <td>@(l.CreatedFromAbsence ? "تحويل غياب" : "طلب إجازة")</td>
+                        <td class="num @(l.Balance < 0 ? "neg" : "")">@l.Balance</td>
+                        <td>@(l.ApprovedBy ?? "-")</td>
+                    </tr>
+                }
+                </tbody>
+            </table>
+        </div>
+    }
+</div>
+
+<div class="card">
+    <div class="card-head">
+        <h3>أرصدة الإجازة السنوية</h3>
+        <div class="sub">@Model.EmployeesWithBalance موظف — الرصيد المتبقي والمستخدم محسوبان من الرصيد المستحق والمرحّل.</div>
+    </div>
+    @if (Model.Balances.Count == 0)
+    {
+        ViewData["message"] = "لا يوجد موظفون مطابقون للمرشحات الحالية";
+        ViewData["icon"] = "👥";
+        <partial name="_Empty" />
+    }
+    else
+    {
+        <div class="table-wrap">
+            <table class="data">
+                <thead>
+                <tr>
+                    <th>كود</th><th>الاسم</th><th>القسم</th><th>المسمى</th>
+                    <th>المستحق</th><th>المرحّل</th><th>إجمالي الرصيد</th><th>المستخدم</th><th>المتبقي</th>
+                </tr>
+                </thead>
+                <tbody>
+                @foreach (var b in Model.Balances)
+                {
+                    <tr>
+                        <td class="num">@b.EmployeeCode</td>
+                        <td>@b.EmployeeName</td>
+                        <td>@(b.Department ?? "-")</td>
+                        <td>@(b.JobTitle ?? "-")</td>
+                        <td class="num">@b.Entitlement</td>
+                        <td class="num">@b.CarriedOver</td>
+                        <td class="num">@b.Total</td>
+                        <td class="num">@b.Used</td>
+                        <td class="num @(b.Balance < 0 ? "neg" : "")">@b.Balance</td>
+                    </tr>
+                }
+                </tbody>
+            </table>
+        </div>
+    }
+</div>
+
+@functions {
+    private static string StatusText(ApprovalStatus s) => s switch
+    {
+        ApprovalStatus.Pending => "قيد المراجعة",
+        ApprovalStatus.Approved => "معتمد",
+        ApprovalStatus.Rejected => "مرفوض",
+        _ => s.ToString()
+    };
+}

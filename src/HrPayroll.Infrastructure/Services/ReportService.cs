@@ -195,6 +195,93 @@ public sealed class PayslipData
     public List<string> Notes { get; set; } = new();
 }
 
+// ======================= تقرير الأقسام والمسميات الوظيفية =======================
+
+/// <summary>ملخص موظف داخل مجموعة مسمى وظيفي في تقرير الأقسام.</summary>
+public sealed class EmployeeAttendanceSummaryRow
+{
+    public int EmployeeId { get; set; }
+    public string EmployeeCode { get; set; } = string.Empty;
+    public string EmployeeName { get; set; } = string.Empty;
+    public int AttendanceRecords { get; set; }
+    public int PresentRecords { get; set; }
+    public int AbsentRecords { get; set; }
+    public int LateMinutes { get; set; }
+    public int ApprovedOvertimeMinutes { get; set; }
+    public decimal ApprovedOvertimeHours => Math.Round(ApprovedOvertimeMinutes / 60m, 2);
+    public bool NeedsReview => AbsentRecords > 0;
+}
+
+/// <summary>مجموعة مسمى وظيفي داخل قسم.</summary>
+public sealed class JobTitleGroupRow
+{
+    public string JobTitle { get; set; } = "غير محدد";
+    public int AttendanceRecords { get; set; }
+    public int PresentEmployees { get; set; }
+    public int AbsentEmployees { get; set; }
+    public int LateEmployees { get; set; }
+    public int OnLeaveEmployees { get; set; }
+    public List<EmployeeAttendanceSummaryRow> Employees { get; set; } = new();
+    public int EmployeeCount => Employees.Count;
+}
+
+/// <summary>قسم في تقرير الأقسام، مقسّم حسب المسمى الوظيفي مع أسماء الموظفين.</summary>
+public sealed class DepartmentJobTitleReportRow
+{
+    public string Department { get; set; } = "غير محدد";
+    public int AttendanceRecords { get; set; }
+    public int TotalEmployees { get; set; }
+    public int PresentEmployees { get; set; }
+    public int AbsentEmployees { get; set; }
+    public int LateEmployees { get; set; }
+    public int OnLeaveEmployees { get; set; }
+    public List<JobTitleGroupRow> JobTitles { get; set; } = new();
+    public decimal PresentRate => TotalEmployees == 0 ? 0m : Math.Round(PresentEmployees * 100m / TotalEmployees, 1);
+}
+
+/// <summary>رصيد الإجازة السنوية لموظف.</summary>
+public sealed class LeaveBalanceRow
+{
+    public int EmployeeId { get; set; }
+    public string EmployeeCode { get; set; } = string.Empty;
+    public string EmployeeName { get; set; } = string.Empty;
+    public string? Department { get; set; }
+    public string? JobTitle { get; set; }
+    public EmploymentStatus EmploymentStatus { get; set; }
+    public decimal Entitlement { get; set; }
+    public decimal CarriedOver { get; set; }
+    public decimal Balance { get; set; }
+    public decimal Total => Entitlement + CarriedOver;
+    public decimal Used => Math.Max(0m, Total - Balance);
+}
+
+/// <summary>طلب إجازة في تقرير الإجازات.</summary>
+public sealed class LeaveReportRow
+{
+    public int LeaveRequestId { get; set; }
+    public int EmployeeId { get; set; }
+    public string EmployeeCode { get; set; } = string.Empty;
+    public string EmployeeName { get; set; } = string.Empty;
+    public string? Department { get; set; }
+    public string? JobTitle { get; set; }
+    public LeaveType LeaveType { get; set; }
+    public DateTime StartDate { get; set; }
+    public DateTime EndDate { get; set; }
+    public int DaysCount { get; set; }
+    public decimal WorkingDays { get; set; }
+    public ApprovalStatus Status { get; set; }
+    public bool IsPaid { get; set; }
+    public bool CreatedFromAbsence { get; set; }
+    public string? Reason { get; set; }
+    public string? ApprovedBy { get; set; }
+    public DateTime? ApprovedAt { get; set; }
+    public decimal Entitlement { get; set; }
+    public decimal CarriedOver { get; set; }
+    public decimal Balance { get; set; }
+    public decimal Total => Entitlement + CarriedOver;
+    public decimal Used => Math.Max(0m, Total - Balance);
+}
+
 /// <summary>استعلامات التقارير: كل الأرقام تُقرأ من قاعدة البيانات ولا شيء منها ثابت.</summary>
 public class ReportService
 {
@@ -493,5 +580,160 @@ public class ReportService
         if (item.AdditionalDaysCount > 0)
             slip.Notes.Add($"{item.AdditionalDaysCount} يوم عمل إضافي مستحق خارج فترة الراتب الأساسية.");
         return slip;
+    }
+
+    // ======================= تقرير الأقسام والمسميات الوظيفية =======================
+
+    /// <summary>
+    /// تقرير الأقسام للتجميع حسب القسم ثم المسمى الوظيفي مع أسماء الموظفين الفعلية.
+    /// كل الأعداد مشتقة من سجلات الحضور المطابقة للمرشحات، ولا شيء منها ثابت في الكود.
+    /// </summary>
+    public async Task<List<DepartmentJobTitleReportRow>> GetDepartmentJobTitleReportAsync(
+        AttendanceReportFilter filter, string? jobTitle = null, CancellationToken ct = default)
+    {
+        var rows = await GetDailyAttendanceAsync(filter, ct);
+        if (!string.IsNullOrWhiteSpace(jobTitle))
+        {
+            var jt = jobTitle.Trim();
+            rows = rows.Where(r => string.Equals(r.JobTitle?.Trim(), jt, StringComparison.OrdinalIgnoreCase)).ToList();
+        }
+
+        return rows
+            .GroupBy(r => string.IsNullOrWhiteSpace(r.Department) ? "غير محدد" : r.Department!.Trim())
+            .Select(dept => new DepartmentJobTitleReportRow
+            {
+                Department = dept.Key,
+                AttendanceRecords = dept.Count(),
+                TotalEmployees = dept.Select(r => r.EmployeeId).Distinct().Count(),
+                PresentEmployees = dept
+                    .Where(r => r.Status is AttendanceStatus.Present or AttendanceStatus.Late or AttendanceStatus.EarlyDeparture)
+                    .Select(r => r.EmployeeId).Distinct().Count(),
+                AbsentEmployees = dept
+                    .Where(r => r.Status is AttendanceStatus.Absent or AttendanceStatus.UnexcusedAbsence)
+                    .Select(r => r.EmployeeId).Distinct().Count(),
+                LateEmployees = dept.Where(r => r.LateMinutes > 0).Select(r => r.EmployeeId).Distinct().Count(),
+                OnLeaveEmployees = dept
+                    .Where(r => r.Status is AttendanceStatus.Leave or AttendanceStatus.PaidLeave or AttendanceStatus.UnpaidLeave)
+                    .Select(r => r.EmployeeId).Distinct().Count(),
+                JobTitles = dept
+                    .GroupBy(r => string.IsNullOrWhiteSpace(r.JobTitle) ? "غير محدد" : r.JobTitle!.Trim())
+                    .Select(jg => new JobTitleGroupRow
+                    {
+                        JobTitle = jg.Key,
+                        AttendanceRecords = jg.Count(),
+                        PresentEmployees = jg
+                            .Where(r => r.Status is AttendanceStatus.Present or AttendanceStatus.Late or AttendanceStatus.EarlyDeparture)
+                            .Select(r => r.EmployeeId).Distinct().Count(),
+                        AbsentEmployees = jg
+                            .Where(r => r.Status is AttendanceStatus.Absent or AttendanceStatus.UnexcusedAbsence)
+                            .Select(r => r.EmployeeId).Distinct().Count(),
+                        LateEmployees = jg.Where(r => r.LateMinutes > 0).Select(r => r.EmployeeId).Distinct().Count(),
+                        OnLeaveEmployees = jg
+                            .Where(r => r.Status is AttendanceStatus.Leave or AttendanceStatus.PaidLeave or AttendanceStatus.UnpaidLeave)
+                            .Select(r => r.EmployeeId).Distinct().Count(),
+                        Employees = jg
+                            .GroupBy(r => new { r.EmployeeId, r.EmployeeCode, r.EmployeeName })
+                            .Select(eg => new EmployeeAttendanceSummaryRow
+                            {
+                                EmployeeId = eg.Key.EmployeeId,
+                                EmployeeCode = eg.Key.EmployeeCode,
+                                EmployeeName = eg.Key.EmployeeName,
+                                AttendanceRecords = eg.Count(),
+                                PresentRecords = eg.Count(x => x.Status is AttendanceStatus.Present or AttendanceStatus.Late or AttendanceStatus.EarlyDeparture),
+                                AbsentRecords = eg.Count(x => x.Status is AttendanceStatus.Absent or AttendanceStatus.UnexcusedAbsence),
+                                LateMinutes = eg.Sum(x => x.LateMinutes),
+                                ApprovedOvertimeMinutes = eg.Sum(x => x.ApprovedOvertimeMinutes)
+                            })
+                            .OrderBy(e => e.EmployeeCode)
+                            .ToList()
+                    })
+                    .OrderByDescending(j => j.Employees.Count).ThenBy(j => j.JobTitle)
+                    .ToList()
+            })
+            .OrderByDescending(d => d.TotalEmployees).ThenBy(d => d.Department)
+            .ToList();
+    }
+
+    /// <summary>أرصدة الإجازة السنوية للموظفين (تُستخدم في تقرير الإجازات والأرصدة).</summary>
+    public async Task<List<LeaveBalanceRow>> GetLeaveBalancesAsync(
+        AttendanceReportFilter filter, CancellationToken ct = default)
+    {
+        var q = _db.Employees.AsNoTracking().AsQueryable();
+        if (!string.IsNullOrWhiteSpace(filter.Department))
+            q = q.Where(e => e.Department == filter.Department);
+        if (filter.EmployeeId.HasValue) q = q.Where(e => e.Id == filter.EmployeeId.Value);
+        if (!string.IsNullOrWhiteSpace(filter.Search))
+        {
+            var s = filter.Search.Trim();
+            q = q.Where(e => e.FullName.Contains(s) || e.EmployeeCode.Contains(s));
+        }
+
+        return await q
+            .Select(e => new LeaveBalanceRow
+            {
+                EmployeeId = e.Id,
+                EmployeeCode = e.EmployeeCode,
+                EmployeeName = e.FullName,
+                Department = e.Department,
+                JobTitle = e.JobTitle,
+                EmploymentStatus = e.EmploymentStatus,
+                Entitlement = e.AnnualLeaveEntitlement,
+                CarriedOver = e.AnnualLeaveCarriedOver,
+                Balance = e.AnnualLeaveBalance
+            })
+            .OrderBy(r => r.Department).ThenBy(r => r.EmployeeCode)
+            .ToListAsync(ct);
+    }
+
+    /// <summary>طلبات الإجازات داخل الفترة مع حالة كل طلب ورصيد الموظف.</summary>
+    public async Task<List<LeaveReportRow>> GetLeavesAsync(
+        AttendanceReportFilter filter, LeaveType? leaveType = null, ApprovalStatus? status = null,
+        CancellationToken ct = default)
+    {
+        var from = filter.From.Date;
+        var to = filter.To.Date;
+        if (to < from) (from, to) = (to, from);
+
+        var q = _db.LeaveRequests.AsNoTracking()
+            .Include(l => l.Employee)
+            .Where(l => l.StartDate <= to && l.EndDate >= from);
+
+        if (!string.IsNullOrWhiteSpace(filter.Department))
+            q = q.Where(l => l.Employee!.Department == filter.Department);
+        if (filter.EmployeeId.HasValue) q = q.Where(l => l.EmployeeId == filter.EmployeeId.Value);
+        if (leaveType.HasValue) q = q.Where(l => l.LeaveType == leaveType.Value);
+        if (status.HasValue) q = q.Where(l => l.Status == status.Value);
+        if (!string.IsNullOrWhiteSpace(filter.Search))
+        {
+            var s = filter.Search.Trim();
+            q = q.Where(l => l.Employee!.FullName.Contains(s) || l.Employee!.EmployeeCode.Contains(s));
+        }
+
+        return await q
+            .OrderBy(l => l.Employee!.EmployeeCode).ThenBy(l => l.StartDate)
+            .Select(l => new LeaveReportRow
+            {
+                LeaveRequestId = l.Id,
+                EmployeeId = l.EmployeeId,
+                EmployeeCode = l.Employee!.EmployeeCode,
+                EmployeeName = l.Employee!.FullName,
+                Department = l.Employee!.Department,
+                JobTitle = l.Employee!.JobTitle,
+                LeaveType = l.LeaveType,
+                StartDate = l.StartDate,
+                EndDate = l.EndDate,
+                DaysCount = l.DaysCount,
+                WorkingDays = l.WorkingDays,
+                Status = l.Status,
+                IsPaid = l.IsPaid,
+                CreatedFromAbsence = l.CreatedFromAbsence,
+                Reason = l.Reason,
+                ApprovedBy = l.ApprovedBy,
+                ApprovedAt = l.ApprovedAt,
+                Entitlement = l.Employee!.AnnualLeaveEntitlement,
+                CarriedOver = l.Employee!.AnnualLeaveCarriedOver,
+                Balance = l.Employee!.AnnualLeaveBalance
+            })
+            .ToListAsync(ct);
     }
 }

@@ -3,36 +3,101 @@
     ViewData["Title"] = "استيراد البصمات";
     var batches = ViewBag.Batches as List<ImportBatch> ?? new List<ImportBatch>();
 }
+
 <div class="card">
     <div class="card-head">
         <div>
-            <h2>استيراد ملف بصمات جهاز الحضور</h2>
-            <div class="sub">ارفع الملف ← عاين وتحقق ← أكّد. التكرار محمي على مستوى البصمة الواحدة.</div>
+            <h2>رفع ملفات البصمة ومعالجة الحضور</h2>
+            <div class="sub">
+                ملفان منفصلان من جهاز البصمة: ملف الدخول وملف الخروج. لكل ملف منطقة مستقلة حتى لا يختلط أحدهما بالآخر.
+            </div>
         </div>
     </div>
     <div class="card-body">
-        <form method="post" asp-action="Upload" enctype="multipart/form-data">
-            <div class="form-grid">
-                <div class="field span-2">
-                    <label>ملف البصمات (xlsx / xls / csv / Excel 2003 XML) — الحد الأقصى 25 ميجابايت</label>
-                    <input type="file" name="file" accept=".xlsx,.xls,.csv,.xml,.txt" required />
-                </div>
+        <form method="post" asp-action="Upload" enctype="multipart/form-data"
+              id="importForm" data-file-zones data-loading-text="جارٍ التحقق من الملفات...">
+
+            <div class="upload-grid">
+                <!-- ===================== منطقة ملف الدخول ===================== -->
+                <section class="upload-zone zone-entry" data-zone="entry">
+                    <header class="upload-zone-head">
+                        <span class="upload-zone-ico" aria-hidden="true">⬇️</span>
+                        <div class="upload-zone-title">
+                            <h3>رفع ملف الدخول</h3>
+                            <span class="hint">سجلات تسجيل الدخول إلى العمل</span>
+                        </div>
+                        <span class="file-state" data-file-state="entry">لم يتم الاختيار</span>
+                    </header>
+
+                    <label class="upload-drop">
+                        <input type="file" name="entryFile" id="entryFile"
+                               accept=".xlsx,.xls,.csv,.xml,.txt" data-file-input="entry" />
+                        <span class="upload-drop-ico" aria-hidden="true">📥</span>
+                        <span class="upload-drop-cta">اختيار ملف الدخول</span>
+                        <span class="upload-drop-hint">اضغط لاختيار الملف أو اسحبه هنا — xlsx / xls / csv / xml</span>
+                    </label>
+
+                    <ul class="upload-meta">
+                        <li><span class="k">اسم الملف:</span> <span class="v" data-file-name="entry">—</span></li>
+                        <li><span class="k">حجم الملف:</span> <span class="v" data-file-size="entry">—</span></li>
+                        <li><span class="k">آخر تعديل للملف:</span> <span class="v" data-file-date="entry">—</span></li>
+                        <li><span class="k">الحالة:</span> <span class="v" data-file-state-detail="entry">بانتظار اختيار الملف</span></li>
+                    </ul>
+                </section>
+
+                <!-- ===================== منطقة ملف الخروج ===================== -->
+                <section class="upload-zone zone-exit" data-zone="exit">
+                    <header class="upload-zone-head">
+                        <span class="upload-zone-ico" aria-hidden="true">⬆️</span>
+                        <div class="upload-zone-title">
+                            <h3>رفع ملف الخروج</h3>
+                            <span class="hint">سجلات تسجيل الخروج من العمل</span>
+                        </div>
+                        <span class="file-state" data-file-state="exit">لم يتم الاختيار</span>
+                    </header>
+
+                    <label class="upload-drop">
+                        <input type="file" name="exitFile" id="exitFile"
+                               accept=".xlsx,.xls,.csv,.xml,.txt" data-file-input="exit" />
+                        <span class="upload-drop-ico" aria-hidden="true">📤</span>
+                        <span class="upload-drop-cta">اختيار ملف الخروج</span>
+                        <span class="upload-drop-hint">اضغط لاختيار الملف أو اسحبه هنا — xlsx / xls / csv / xml</span>
+                    </label>
+
+                    <ul class="upload-meta">
+                        <li><span class="k">اسم الملف:</span> <span class="v" data-file-name="exit">—</span></li>
+                        <li><span class="k">حجم الملف:</span> <span class="v" data-file-size="exit">—</span></li>
+                        <li><span class="k">آخر تعديل للملف:</span> <span class="v" data-file-date="exit">—</span></li>
+                        <li><span class="k">الحالة:</span> <span class="v" data-file-state-detail="exit">بانتظار اختيار الملف</span></li>
+                    </ul>
+                </section>
             </div>
-            <div class="alert alert-info" style="margin-top:14px">
+
+            <div class="alert alert-danger upload-error" id="importFormError" hidden>
+                <span>اختر ملف الدخول أو ملف الخروج على الأقل قبل المتابعة.</span>
+            </div>
+
+            <div class="alert alert-info" style="margin-top:16px">
                 <span>
-                    يدعم النظام ملفات البصمة المصدّرة من جهاز البصمة: ملف دخول فقط، أو خروج فقط، أو ملف واحد بكل الحركات.
-                    المطابقة تتم بكود الجهاز/البصمة لا بالاسم. البصمات المكررة (نفس الموظف ونفس الوقت) لا تُستورد مرتين.
+                    المطابقة تتم بكود الموظف/كود البصمة لا بالاسم، فلا تُدمج بيانات موظفين متشابهين في الاسم.
+                    البصمات المكررة (نفس الموظف ونفس الوقت) لا تُستورد مرتين، وأي كود غير مسجَّل يظهر في تقرير المعاينة
+                    للمراجعة دون ربطه بموظف آخر. يمكن رفع أحد الملفين فقط إذا كان متاحًا.
                 </span>
             </div>
-            <div class="btn-row">
-                <button type="submit" class="btn btn-primary btn-lg">تحليل الملف وعرض المعاينة</button>
+
+            <div class="upload-submit">
+                <button type="submit" class="btn btn-primary btn-lg">رفع الملفات ومعالجة الحضور</button>
+                <span class="hint">سيتم تحليل الملفين والتحقق منهما ثم عرض معاينة مستقلة لكل ملف قبل أي استيراد.</span>
             </div>
         </form>
     </div>
 </div>
 
 <div class="card">
-    <div class="card-head"><h3>سجل عمليات الاستيراد</h3></div>
+    <div class="card-head">
+        <h3>سجل عمليات الاستيراد</h3>
+        <div class="sub">كل ملف يُسجَّل بشكل مستقل مع عدد السجلات المقبولة والمكررة وغير الصالحة، ويمكن فتحه لمراجعة تفاصيله.</div>
+    </div>
     @if (batches.Count == 0)
     {
         ViewData["message"] = "لم يتم استيراد أي ملف بصمات بعد";
@@ -44,7 +109,7 @@
         <div class="table-wrap">
             <table class="data">
                 <thead>
-                <tr><th>الملف</th><th>الصيغة</th><th>التاريخ</th><th>المستخدم</th><th>إجمالي</th><th>ناجح</th><th>مكرر</th><th>غير صالح</th><th>موظف غير معروف</th><th></th></tr>
+                <tr><th>الملف</th><th>الصيغة</th><th>التاريخ</th><th>المستخدم</th><th>إجمالي</th><th>مقبول</th><th>مكرر</th><th>غير صالح</th><th>موظف غير معروف</th><th></th></tr>
                 </thead>
                 <tbody>
                 @foreach (var b in batches)

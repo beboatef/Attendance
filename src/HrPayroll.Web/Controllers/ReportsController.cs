@@ -44,6 +44,7 @@ public class ReportsController : Controller
     {
         var filter = Build(from, to, department, employeeId, shiftId, null, null);
         var daily = await _reports.GetDailyAttendanceAsync(filter, ct);
+        var departmentGroups = await _reports.GetDepartmentJobTitleReportAsync(filter, null, ct);
 
         return View(new ReportsIndexViewModel
         {
@@ -56,7 +57,10 @@ public class ReportsController : Controller
             DepartmentRows = await _reports.GetDepartmentReportAsync(filter, ct),
             DailyRowCount = daily.Count,
             OvertimeRowCount = (await _reports.GetOvertimeAsync(filter, true, ct)).Count,
-            AbsenceRowCount = (await _reports.GetAbsenceAndLatenessAsync(filter, ct)).Count
+            AbsenceRowCount = (await _reports.GetAbsenceAndLatenessAsync(filter, ct)).Count,
+            LeaveRowCount = (await _reports.GetLeavesAsync(filter, null, null, ct)).Count,
+            LeaveBalanceCount = (await _reports.GetLeaveBalancesAsync(filter, ct)).Count,
+            DepartmentJobTitleGroups = departmentGroups.Sum(d => d.JobTitles.Count)
         });
     }
 
@@ -98,6 +102,45 @@ public class ReportsController : Controller
         return View(await _reports.GetAbsenceAndLatenessAsync(filter, ct));
     }
 
+    /// <summary>
+    /// تقرير الأقسام المستقل: تجميع حسب القسم ثم المسمى الوظيفي مع أسماء الموظفين الفعلية،
+    /// وزر طباعة وزر تصدير Excel. مستقل عن جدول الحضور المختصر.
+    /// </summary>
+    public async Task<IActionResult> Departments(DateTime? from, DateTime? to, string? department, string? jobTitle,
+        int? employeeId, int? shiftId, string? search, CancellationToken ct)
+    {
+        var filter = Build(from, to, department, employeeId, shiftId, null, search);
+        return View(new DepartmentReportViewModel
+        {
+            Filter = filter,
+            JobTitle = jobTitle,
+            Rows = await _reports.GetDepartmentJobTitleReportAsync(filter, jobTitle, ct),
+            Departments = await _db.Departments.AsNoTracking().OrderBy(d => d.Name).ToListAsync(ct),
+            Shifts = await _db.Shifts.AsNoTracking().OrderBy(s => s.ShiftNumber).ToListAsync(ct),
+            Employees = await _db.Employees.AsNoTracking().OrderBy(e => e.FullName).ToListAsync(ct),
+            JobTitles = await _db.Employees.AsNoTracking()
+                .Where(e => e.JobTitle != null && e.JobTitle != "")
+                .Select(e => e.JobTitle!).Distinct().OrderBy(j => j).ToListAsync(ct)
+        });
+    }
+
+    /// <summary>تقرير الإجازات وأرصدة الإجازة السنوية.</summary>
+    public async Task<IActionResult> Leaves(DateTime? from, DateTime? to, string? department, int? employeeId,
+        LeaveType? leaveType, ApprovalStatus? status, string? search, CancellationToken ct)
+    {
+        var filter = Build(from, to, department, employeeId, null, null, search);
+        return View(new LeaveReportViewModel
+        {
+            Filter = filter,
+            LeaveType = leaveType,
+            Status = status,
+            Rows = await _reports.GetLeavesAsync(filter, leaveType, status, ct),
+            Balances = await _reports.GetLeaveBalancesAsync(filter, ct),
+            Departments = await _db.Departments.AsNoTracking().OrderBy(d => d.Name).ToListAsync(ct),
+            Employees = await _db.Employees.AsNoTracking().OrderBy(e => e.FullName).ToListAsync(ct)
+        });
+    }
+
     // ===================== التصدير =====================
 
     private IActionResult Xlsx(byte[] bytes, string name)
@@ -117,6 +160,17 @@ public class ReportsController : Controller
     public async Task<IActionResult> ExportDepartmentExcel(DateTime? from, DateTime? to, string? department,
         int? employeeId, int? shiftId, CancellationToken ct)
         => Xlsx(await _excel.ExportDepartmentReportAsync(Build(from, to, department, employeeId, shiftId, null, null), ct), "Department_Report");
+
+    /// <summary>تصدير تقرير الأقسام بأسماء الموظفين تحت كل قسم ومسمّى وظيفي.</summary>
+    public async Task<IActionResult> ExportDepartmentsExcel(DateTime? from, DateTime? to, string? department,
+        string? jobTitle, int? employeeId, int? shiftId, string? search, CancellationToken ct)
+        => Xlsx(await _excel.ExportDepartmentJobTitleAsync(
+            Build(from, to, department, employeeId, shiftId, null, search), jobTitle, ct), "Departments_Report");
+
+    public async Task<IActionResult> ExportLeavesExcel(DateTime? from, DateTime? to, string? department,
+        int? employeeId, LeaveType? leaveType, ApprovalStatus? status, string? search, CancellationToken ct)
+        => Xlsx(await _excel.ExportLeavesAsync(
+            Build(from, to, department, employeeId, null, null, search), leaveType, status, ct), "Leaves_Report");
 
     public async Task<IActionResult> ExportOvertimeExcel(DateTime? from, DateTime? to, string? department,
         int? employeeId, int? shiftId, CancellationToken ct)

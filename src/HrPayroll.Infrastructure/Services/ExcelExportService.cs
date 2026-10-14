@@ -625,6 +625,87 @@ public class ExcelExportService
         return rows.OrderBy(r => r.When).ToList();
     }
 
+    /// <summary>
+    /// تقرير الأقسام حسب المسمّى الوظيفي: ورقة ملخص لكل قسم + مسمى،
+    /// وورقة تفصيلية بأسماء الموظفين الفعلية تحت كل قسم ومسمى.
+    /// </summary>
+    public async Task<byte[]> ExportDepartmentJobTitleAsync(
+        AttendanceReportFilter filter, string? jobTitle = null, CancellationToken ct = default)
+    {
+        var rows = await _reports.GetDepartmentJobTitleReportAsync(filter, jobTitle, ct);
+        using var wb = new XLWorkbook();
+
+        var scope = string.IsNullOrWhiteSpace(jobTitle) ? filter.PeriodText : $"{filter.PeriodText} | المسمى: {jobTitle}";
+
+        AddSheet(wb, "Departments", "تقرير الأقسام حسب المسمى الوظيفي", scope,
+            new[] { "القسم", "المسمى الوظيفي", "عدد الموظفين", "حضور", "غياب", "تأخير", "إجازات" },
+            rows.SelectMany(d => d.JobTitles.Select(j => new object?[]
+            {
+                d.Department, j.JobTitle, j.EmployeeCount, j.PresentEmployees, j.AbsentEmployees,
+                j.LateEmployees, j.OnLeaveEmployees
+            }))
+            .Concat(rows.Select(d => new object?[]
+            {
+                $"إجمالي {d.Department}", "—", d.TotalEmployees, d.PresentEmployees, d.AbsentEmployees,
+                d.LateEmployees, d.OnLeaveEmployees
+            })),
+            summary: $"عدد الأقسام: {rows.Count} | إجمالي الموظفين: {rows.Sum(r => r.TotalEmployees)}");
+
+        AddSheet(wb, "Employees", "أسماء الموظفين حسب القسم والمسمى", scope,
+            new[]
+            {
+                "القسم", "المسمى الوظيفي", "كود الموظف", "الاسم", "سجلات الحضور", "أيام حضور",
+                "أيام غياب", "دقائق التأخير", "إضافي معتمد (ساعة)"
+            },
+            rows.SelectMany(d => d.JobTitles.SelectMany(j => j.Employees.Select(e => new object?[]
+            {
+                d.Department, j.JobTitle, e.EmployeeCode, e.EmployeeName, e.AttendanceRecords,
+                e.PresentRecords, e.AbsentRecords, e.LateMinutes, e.ApprovedOvertimeHours
+            }))),
+            summary: $"عدد صفوف الموظفين: {rows.Sum(r => r.JobTitles.Sum(j => j.Employees.Count))}");
+
+        return ToBytes(wb);
+    }
+
+    /// <summary>تقرير الإجازات والأرصدة: طلبات الإجازة داخل الفترة + أرصدة الإجازة السنوية.</summary>
+    public async Task<byte[]> ExportLeavesAsync(
+        AttendanceReportFilter filter, LeaveType? leaveType = null, ApprovalStatus? status = null,
+        CancellationToken ct = default)
+    {
+        var leaves = await _reports.GetLeavesAsync(filter, leaveType, status, ct);
+        var balances = await _reports.GetLeaveBalancesAsync(filter, ct);
+        using var wb = new XLWorkbook();
+
+        AddSheet(wb, "Leaves", "تقرير الإجازات", filter.PeriodText,
+            new[]
+            {
+                "م", "كود الموظف", "الاسم", "القسم", "المسمى الوظيفي", "نوع الإجازة", "من تاريخ", "إلى تاريخ",
+                "أيام الطلب", "أيام العمل", "مدفوعة؟", "الحالة", "مصدر الطلب", "السبب", "اعتمدها"
+            },
+            leaves.Select((l, i) => new object?[]
+            {
+                i + 1, l.EmployeeCode, l.EmployeeName, l.Department, l.JobTitle, LeaveTypeText(l.LeaveType),
+                l.StartDate, l.EndDate, l.DaysCount, l.WorkingDays, l.IsPaid ? "نعم" : "لا",
+                ApprovalText(l.Status), l.CreatedFromAbsence ? "تحويل غياب" : "طلب من الموارد البشرية",
+                l.Reason, l.ApprovedBy
+            }),
+            summary: $"إجمالي الطلبات: {leaves.Count} | أيام عمل معتمدة: {leaves.Where(l => l.Status == ApprovalStatus.Approved).Sum(l => l.WorkingDays)} | " +
+                     $"قيد المراجعة: {leaves.Count(l => l.Status == ApprovalStatus.Pending)}",
+            dateFormatColumns: new[] { 7, 8 }, decimalColumns: new[] { 9, 10 });
+
+        AddSheet(wb, "Balances", "أرصدة الإجازة السنوية", filter.PeriodText,
+            new[] { "كود الموظف", "الاسم", "القسم", "المسمى الوظيفي", "الرصيد المستحق", "المرحّل", "إجمالي الرصيد", "المستخدم", "المتبقي" },
+            balances.Select(b => new object?[]
+            {
+                b.EmployeeCode, b.EmployeeName, b.Department, b.JobTitle,
+                b.Entitlement, b.CarriedOver, b.Total, b.Used, b.Balance
+            }),
+            summary: $"عدد الموظفين: {balances.Count} | إجمالي المتبقي: {balances.Sum(b => b.Balance)}",
+            decimalColumns: new[] { 5, 6, 7, 8, 9 });
+
+        return ToBytes(wb);
+    }
+
     // ======================= أدوات بناء الأوراق =======================
 
     private static void AddSheet(
@@ -747,6 +828,28 @@ public class ExcelExportService
         AttendanceStatus.PaidLeave => "إجازة مدفوعة",
         AttendanceStatus.UnpaidLeave => "إجازة بدون أجر",
         AttendanceStatus.UnexcusedAbsence => "غياب بدون عذر",
+        _ => s.ToString()
+    };
+
+    public static string LeaveTypeText(LeaveType t) => t switch
+    {
+        LeaveType.Annual => "سنوية",
+        LeaveType.Sick => "مرضية",
+        LeaveType.Unpaid => "بدون أجر",
+        LeaveType.Emergency => "طارئة",
+        LeaveType.Other => "أخرى",
+        LeaveType.PublicHoliday => "عطلة رسمية",
+        LeaveType.UnexcusedAbsence => "غياب بدون عذر",
+        LeaveType.Paid => "مدفوعة",
+        LeaveType.WeeklyRest => "راحة أسبوعية",
+        _ => t.ToString()
+    };
+
+    public static string ApprovalText(ApprovalStatus s) => s switch
+    {
+        ApprovalStatus.Pending => "قيد المراجعة",
+        ApprovalStatus.Approved => "معتمد",
+        ApprovalStatus.Rejected => "مرفوض",
         _ => s.ToString()
     };
 

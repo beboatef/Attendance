@@ -28,8 +28,16 @@ builder.Services.AddIdentity<ApplicationUser, IdentityRole>(options =>
     {
         options.Password.RequiredLength = 8;
         options.Password.RequireNonAlphanumeric = false;
+        options.Password.RequireDigit = true;
+        options.Password.RequireUppercase = true;
+        options.Password.RequireLowercase = true;
         options.User.RequireUniqueEmail = true;
         options.SignIn.RequireConfirmedAccount = false;
+
+        // سياسة محاولات الدخول الفاشلة: قفل مؤقت للحساب بعد 5 محاولات خاطئة
+        options.Lockout.AllowedForNewUsers = true;
+        options.Lockout.MaxFailedAccessAttempts = 5;
+        options.Lockout.DefaultLockoutTimeSpan = TimeSpan.FromMinutes(15);
     })
     .AddEntityFrameworkStores<AppDbContext>()
     .AddDefaultTokenProviders();
@@ -145,11 +153,22 @@ using (var scope = app.Services.CreateScope())
             var db = services.GetRequiredService<AppDbContext>();
             // Migrate تُطبّق الترحيلات الناقصة فقط: لا تُعيد إنشاء قاعدة موجودة ولا تحذف أي جدول.
             db.Database.Migrate();
+
+            // بيانات أول مسؤول تأتي من الإعدادات فقط (متغيّر بيئة أو User Secrets أو ملف غير مُتتبَّع)،
+            // ولا تُوجود أي كلمة مرور افتراضية في الكود أو المستودع.
+            var seedSection = builder.Configuration.GetSection("Seed");
             await DbSeeder.SeedAsync(
                 db,
                 services.GetRequiredService<RoleManager<IdentityRole>>(),
                 services.GetRequiredService<UserManager<ApplicationUser>>(),
-                logger);
+                logger,
+                new AdminSeedOptions
+                {
+                    IsDevelopment = app.Environment.IsDevelopment(),
+                    Email = seedSection["AdminEmail"],
+                    Password = seedSection["AdminPassword"],
+                    FullName = seedSection["AdminFullName"]
+                });
         }
         catch (Exception ex)
         {

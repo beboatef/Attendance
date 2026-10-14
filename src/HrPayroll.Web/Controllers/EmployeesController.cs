@@ -20,13 +20,16 @@ public class EmployeesController : Controller
     private readonly AuditService _audit;
     private readonly EmployeeImportService _import;
     private readonly LeaveService _leaves;
+    private readonly ILogger<EmployeesController> _logger;
 
-    public EmployeesController(AppDbContext db, AuditService audit, EmployeeImportService import, LeaveService leaves)
+    public EmployeesController(AppDbContext db, AuditService audit, EmployeeImportService import, LeaveService leaves,
+        ILogger<EmployeesController> logger)
     {
         _db = db;
         _audit = audit;
         _import = import;
         _leaves = leaves;
+        _logger = logger;
     }
 
     public async Task<IActionResult> Index(string? search, string? department, int? departmentId, int? shiftId,
@@ -311,7 +314,8 @@ public class EmployeesController : Controller
         }
         catch (Exception ex)
         {
-            TempData["Error"] = "تعذّر قراءة الملف: " + ex.Message;
+            _logger.LogError(ex, "تعذّر تحليل ملف استيراد الموظفين {FileName}", file.FileName);
+            TempData["Error"] = "تعذّرت قراءة الملف. تأكد من أنه ملف Excel صالح غير تالف أو مفتوح في برنامج آخر.";
             return RedirectToAction(nameof(Import));
         }
 

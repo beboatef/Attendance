@@ -19,6 +19,28 @@
         });
     });
 
+    // ---------- توسيع/طي كل المجموعات (تقرير الأقسام) ----------
+    document.querySelectorAll('[data-expand-all]').forEach(function (btn) {
+        btn.addEventListener('click', function () {
+            document.querySelectorAll(btn.dataset.expandAll).forEach(function (d) { d.open = true; });
+        });
+    });
+    document.querySelectorAll('[data-collapse-all]').forEach(function (btn) {
+        btn.addEventListener('click', function () {
+            document.querySelectorAll(btn.dataset.collapseAll).forEach(function (d) { d.open = false; });
+        });
+    });
+
+    // ---------- طباعة: تفتح المجموعات المطوية قبل الطباعة ----------
+    document.querySelectorAll('[data-print]').forEach(function (btn) {
+        btn.addEventListener('click', function () {
+            if (btn.dataset.printExpand) {
+                document.querySelectorAll(btn.dataset.printExpand).forEach(function (d) { d.open = true; });
+            }
+            window.print();
+        });
+    });
+
     // ---------- البحث الفوري داخل الجداول ----------
     document.querySelectorAll('input[data-table-filter]').forEach(function (input) {
         var table = document.querySelector(input.dataset.tableFilter);
@@ -37,9 +59,103 @@
         });
     });
 
+    // ---------- مناطق رفع ملفات البصمة (الدخول / الخروج) ----------
+    // تعرض اسم الملف وحجمه وتاريخه وحالته، وتمنع الإرسال قبل اختيار ملف واحد على الأقل.
+    (function () {
+        var form = document.querySelector('form[data-file-zones]');
+        if (!form) return;
+
+        var errorBox = form.querySelector('#importFormError');
+
+        function formatSize(bytes) {
+            if (!bytes && bytes !== 0) return '—';
+            var kb = bytes / 1024;
+            if (kb < 1024) return kb.toFixed(1) + ' ك.ب';
+            return (kb / 1024).toFixed(2) + ' م.ب';
+        }
+
+        function formatDate(ms) {
+            if (!ms) return '—';
+            var d = new Date(ms);
+            if (isNaN(d.getTime())) return '—';
+            function p(n) { return (n < 10 ? '0' : '') + n; }
+            return d.getFullYear() + '-' + p(d.getMonth() + 1) + '-' + p(d.getDate()) +
+                ' ' + p(d.getHours()) + ':' + p(d.getMinutes());
+        }
+
+        function setText(selector, key, value) {
+            form.querySelectorAll('[data-' + selector + '="' + key + '"]').forEach(function (el) {
+                el.textContent = value;
+            });
+        }
+
+        function refresh(input) {
+            var key = input.dataset.fileInput;
+            var zone = form.querySelector('.upload-zone[data-zone="' + key + '"]');
+            var badge = form.querySelector('[data-file-state="' + key + '"]');
+            var file = input.files && input.files.length ? input.files[0] : null;
+
+            if (!file) {
+                setText('file-name', key, '—');
+                setText('file-size', key, '—');
+                setText('file-date', key, '—');
+                setText('file-state-detail', key, 'بانتظار اختيار الملف');
+                if (badge) { badge.textContent = 'لم يتم الاختيار'; badge.className = 'file-state'; }
+                if (zone) zone.classList.remove('has-file');
+                return;
+            }
+
+            setText('file-name', key, file.name);
+            setText('file-size', key, formatSize(file.size));
+            setText('file-date', key, formatDate(file.lastModified));
+            setText('file-state-detail', key, 'جاهز للرفع — سيتم التحقق من الملف بعد الإرسال');
+            if (badge) { badge.textContent = 'جاهز للرفع'; badge.className = 'file-state ok'; }
+            if (zone) zone.classList.add('has-file');
+        }
+
+        form.querySelectorAll('input[data-file-input]').forEach(function (input) {
+            refresh(input);
+            input.addEventListener('change', function () {
+                if (errorBox) errorBox.hidden = true;
+                refresh(input);
+            });
+        });
+
+        // كشف ملف مُفلَت فوق الصندوق (بعض المتصفحات لا تملأ الحقل تلقائيًا)
+        form.querySelectorAll('.upload-zone').forEach(function (zone) {
+            var input = zone.querySelector('input[data-file-input]');
+            if (!input) return;
+            ['dragenter', 'dragover'].forEach(function (evt) {
+                zone.addEventListener(evt, function (e) { e.preventDefault(); });
+            });
+            zone.addEventListener('drop', function (e) {
+                if (!e.dataTransfer || !e.dataTransfer.files.length) return;
+                e.preventDefault();
+                input.files = e.dataTransfer.files;
+                if (errorBox) errorBox.hidden = true;
+                refresh(input);
+            });
+        });
+
+        // تحقق قبلي: لا تبدأ المعالجة النهائية قبل اختيار ملف واحد على الأقل
+        form.addEventListener('submit', function (e) {
+            var any = Array.prototype.some.call(
+                form.querySelectorAll('input[data-file-input]'),
+                function (i) { return i.files && i.files.length > 0; });
+            if (any) return;
+            e.preventDefault();
+            if (errorBox) {
+                errorBox.hidden = false;
+                errorBox.scrollIntoView({ block: 'center' });
+            }
+        });
+    })();
+
     // ---------- تأكيد العمليات الحساسة ----------
     document.addEventListener('submit', function (e) {
         var form = e.target;
+        // إن منع مدقق آخر الإرسال (مثل التحقق من ملفات الرفع) فلا مؤشر انتظار
+        if (e.defaultPrevented) return;
         if (form.dataset.confirm && !window.confirm(form.dataset.confirm)) {
             e.preventDefault();
             return;
@@ -49,7 +165,7 @@
         if (submitBtn && !submitBtn.disabled) {
             submitBtn.dataset.originalText = submitBtn.innerHTML;
             submitBtn.disabled = true;
-            submitBtn.innerHTML = '<span class="spinner"></span> جارٍ التنفيذ...';
+            submitBtn.innerHTML = '<span class="spinner"></span> ' + (form.dataset.loadingText || 'جارٍ التنفيذ...');
             // إعادة التمكين إن ألغى المتصفح الإرسال بسبب التحقق
             setTimeout(function () {
                 if (document.readyState === 'complete' && submitBtn.disabled && !form.checkValidity()) {
