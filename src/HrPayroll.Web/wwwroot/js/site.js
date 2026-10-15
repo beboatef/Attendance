@@ -5,6 +5,19 @@
 (function () {
     'use strict';
 
+    // ---------- السمة (فاتح / داكن): تبديل وحفظ الاختيار ----------
+    // مسجَّل أولًا حتى يعمل الزر حتى لو تعطّل أي سلوك لاحق بخطأ غير متوقع.
+    var themeToggle = document.getElementById('themeToggle');
+    if (themeToggle && !themeToggle.dataset.themeBound) {
+        themeToggle.dataset.themeBound = '1';
+        themeToggle.addEventListener('click', function () {
+            var root = document.documentElement;
+            var next = root.getAttribute('data-theme') === 'dark' ? 'light' : 'dark';
+            root.setAttribute('data-theme', next);
+            try { localStorage.setItem('hr.theme', next); } catch (e) { /* التخزين المحلي غير متاح */ }
+        });
+    }
+
     // ---------- التبويبات ----------
     document.querySelectorAll('.tabs').forEach(function (tabs) {
         tabs.addEventListener('click', function (e) {
@@ -190,16 +203,6 @@
     });
 
 
-    // ---------- السمة (فاتح / داكن): تبديل وحفظ الاختيار ----------
-    var themeToggle = document.getElementById('themeToggle');
-    if (themeToggle) {
-        themeToggle.addEventListener('click', function () {
-            var root = document.documentElement;
-            var next = root.getAttribute('data-theme') === 'dark' ? 'light' : 'dark';
-            root.setAttribute('data-theme', next);
-            try { localStorage.setItem('hr.theme', next); } catch (e) { /* التخزين المحلي غير متاح */ }
-        });
-    }
 
     // ---------- منع فقدان التعديلات عند وجود نماذج بها data-guard ----------
     document.querySelectorAll('form[data-dirty-guard]').forEach(function (form) {
