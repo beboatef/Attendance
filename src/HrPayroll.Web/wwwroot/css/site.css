@@ -47,13 +47,6 @@
     --input-bg: #ffffff;
     --dirty: #fffdf3;
     --editable: #fffdf5;
-/* الخط العربي المضمّن في المشروع (Cairo) مع بدائل آمنة */
-@font-face {
-    font-family: "CairoHR";
-    src: url("../fonts/Cairo.ttf") format("truetype");
-    font-weight: 400 700;
-    font-style: normal;
-    font-display: swap;
 }
 
 * { box-sizing: border-box; }
@@ -63,8 +56,8 @@ html, body {
     padding: 0;
     background: var(--bg);
     color: var(--ink);
-    font-family: "CairoHR", "IBM Plex Sans Arabic", "Cairo", "Segoe UI", Tahoma, "Noto Naskh Arabic", system-ui, sans-serif;
-    font-size: 14px;
+    font-family: Arial, "Segoe UI", Tahoma, sans-serif;
+    font-size: 15px;
     line-height: 1.65;
     -webkit-text-size-adjust: 100%;
 }
@@ -91,7 +84,7 @@ h1, h2, h3, h4 { margin: 0; font-weight: 700; line-height: 1.4; letter-spacing: 
     position: sticky; top: 0; z-index: 30;
     box-shadow: 0 1px 4px rgba(12, 60, 52, .05);
 }
-.topbar-title { font-size: 17px; font-weight: 700; }
+.topbar-title { font-size: 18px; font-weight: 700; }
 .topbar-sub { font-size: 12px; color: var(--ink-3); }
 .topbar-actions { display: flex; align-items: center; gap: 10px; margin-inline-start: auto; }
 .user-chip {
@@ -143,7 +136,7 @@ h1, h2, h3, h4 { margin: 0; font-weight: 700; line-height: 1.4; letter-spacing: 
     padding: 14px 18px; border-bottom: 1px solid var(--line-2); flex-wrap: wrap;
     background: linear-gradient(180deg, var(--surface-2), var(--surface));
 }
-.card-head h2, .card-head h3 { font-size: 15px; display: flex; align-items: center; gap: 8px; }
+.card-head h2, .card-head h3 { font-size: 16px; display: flex; align-items: center; gap: 8px; }
 .card-head h2::before, .card-head h3::before {
     content: ""; width: 4px; height: 18px; border-radius: 4px; background: var(--brand); display: inline-block;
 }
@@ -200,11 +193,11 @@ h1, h2, h3, h4 { margin: 0; font-weight: 700; line-height: 1.4; letter-spacing: 
 .filters .actions { display: flex; gap: 8px; flex-wrap: wrap; }
 
 /* ============================== النماذج ============================== */
-label, .form-label { font-size: 12.5px; font-weight: 700; color: var(--ink-2); display: block; margin-bottom: 4px; }
+label, .form-label { font-size: 13.5px; font-weight: 700; color: var(--ink-2); display: block; margin-bottom: 4px; }
 .form-control, .form-select, input[type=text], input[type=number], input[type=date], input[type=time],
 input[type=email], input[type=password], input[type=file], input[type=search], select, textarea {
     width: 100%; padding: 8px 12px; border: 1.5px solid var(--line); border-radius: var(--radius-sm);
-    background: var(--input-bg); color: var(--ink); font-size: 13.5px; font-family: inherit; line-height: 1.6;
+    background: var(--input-bg); color: var(--ink); font-size: 14.5px; font-family: inherit; line-height: 1.6;
     transition: border-color .15s, box-shadow .15s;
 }
 .form-control:focus, .form-select:focus, input:focus, select:focus, textarea:focus {
@@ -222,7 +215,7 @@ input[type=email], input[type=password], input[type=file], input[type=search], s
 .btn {
     display: inline-flex; align-items: center; gap: 6px; justify-content: center;
     padding: 8px 16px; border-radius: var(--radius-sm); border: 1px solid transparent;
-    font-size: 13px; font-weight: 700; cursor: pointer; font-family: inherit; line-height: 1.5;
+    font-size: 14px; font-weight: 700; cursor: pointer; font-family: inherit; line-height: 1.5;
     transition: background .15s, border-color .15s, color .15s, box-shadow .15s; white-space: nowrap;
 }
 .btn:hover { text-decoration: none; }
@@ -257,13 +250,13 @@ input[type=email], input[type=password], input[type=file], input[type=search], s
     border: 1px solid var(--line-2); border-radius: var(--radius-sm); margin: 0 18px 18px;
 }
 .card > .table-wrap:last-child { margin-bottom: 18px; }
-table.data { width: 100%; border-collapse: collapse; background: var(--surface); font-size: 13px; }
+table.data { width: 100%; border-collapse: collapse; background: var(--surface); font-size: 14px; }
 table.data th, table.data td {
     padding: 9px 12px; text-align: right; border-bottom: 1px solid var(--line-2); vertical-align: middle;
     white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 320px;
 }
 table.data thead th {
-    background: var(--brand-900); color: #fff; font-size: 12px; font-weight: 700;
+    background: var(--brand-900); color: #fff; font-size: 13px; font-weight: 700;
     position: sticky; top: 0; z-index: 2; white-space: nowrap;
 }
 table.data thead th:first-child { border-start-start-radius: 0; }
@@ -316,7 +309,7 @@ th.th-money, th.th-num { text-align: right; }
 .dirty-indicator { font-size: 12.5px; font-weight: 700; color: var(--accent); }
 
 .sheet-wrap { overflow: auto; max-height: 70vh; max-width: 100%; border: 1px solid var(--line); border-radius: var(--radius-sm); margin: 0 18px 18px; }
-table.sheet { width: 100%; border-collapse: separate; border-spacing: 0; font-size: 12.5px; min-width: 1900px; }
+table.sheet { width: 100%; border-collapse: separate; border-spacing: 0; font-size: 13.5px; min-width: 1900px; }
 table.sheet th, table.sheet td {
     padding: 6px 9px; text-align: right; border-bottom: 1px solid var(--line-2);
     border-inline-start: 1px solid var(--line-2); background: var(--surface); vertical-align: middle;
@@ -531,7 +524,7 @@ input.cell-input[type=number] { -moz-appearance: textfield; }
     box-shadow: 0 4px 10px rgba(12, 107, 92, .35);
 }
 .login-app { font-size: 13px; font-weight: 700; color: var(--brand-900); }
-.login-card h1 { font-size: 22px; margin-top: 6px; }
+.login-card h1 { font-size: 24px; margin-top: 6px; }
 .login-desc { font-size: 13px; color: var(--ink-3); margin: 4px 0 18px; }
 .login-card .auth-form, .login-card .auth-demo-hint { text-align: start; }
 .login-foot { margin: 16px 0 0; font-size: 11.5px; color: var(--ink-3); line-height: 1.7; }
@@ -818,7 +811,7 @@ table.monthly td.c-empty { color: #c3cad4; }
 [data-theme="dark"] .theme-toggle .ico-moon { display: none; }
 
 .home-welcome { display: flex; align-items: center; gap: 14px; flex-wrap: wrap; margin: 4px 0 18px; }
-.home-welcome h1 { font-size: 24px; }
+.home-welcome h1 { font-size: 26px; }
 .home-date { color: var(--ink-3); font-size: 13.5px; margin: 3px 0 0; }
 .home-date-form { margin-inline-start: auto; display: flex; gap: 6px; align-items: center; }
 .home-date-form input { width: auto; }
@@ -840,7 +833,7 @@ table.monthly td.c-empty { color: #c3cad4; }
     box-shadow: 0 4px 10px rgba(0, 0, 0, .18);
 }
 .mod-ico svg { width: 28px; height: 28px; display: block; }
-.mod-title { font-size: 14px; font-weight: 700; color: var(--ink); }
+.mod-title { font-size: 15.5px; font-weight: 700; color: var(--ink); }
 .mod-desc { font-size: 11.5px; color: var(--ink-3); line-height: 1.6; }
 
 .home-stats { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 12px; margin-bottom: 16px; }
@@ -852,7 +845,7 @@ table.monthly td.c-empty { color: #c3cad4; }
 .home-stat.bad { border-inline-start-color: var(--danger); }
 .home-stat:hover { text-decoration: none; border-color: var(--brand); }
 .home-stat .k { font-size: 12.5px; color: var(--ink-3); font-weight: 600; }
-.home-stat .v { font-size: 20px; font-weight: 700; font-variant-numeric: tabular-nums; }
+.home-stat .v { font-size: 22px; font-weight: 700; font-variant-numeric: tabular-nums; }
 
 @media (max-width: 992px) { .launcher { grid-template-columns: repeat(4, minmax(0, 1fr)); } }
 @media (max-width: 760px) {
