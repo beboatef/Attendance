@@ -1,310 +1,189 @@
-@using HrPayroll.Domain.Enums
+@using Microsoft.AspNetCore.Identity
+@using HrPayroll.Domain.Entities
 @model HrPayroll.Infrastructure.Services.DashboardData
-@using HrPayroll.Infrastructure.Services
+@inject UserManager<ApplicationUser> UserManager
 @{
-    ViewData["Title"] = "لوحة التحكم";
-    ViewData["Subtitle"] = "نظرة شاملة على الحضور والرواتب من البيانات الفعلية";
-    var currency = ViewBag.Currency as string ?? "EGP";
-    var months = new[] { "يناير","فبراير","مارس","أبريل","مايو","يونيو","يوليو","أغسطس","سبتمبر","أكتوبر","نوفمبر","ديسمبر" };
+    ViewData["Title"] = "الرئيسية";
+    var appUser = await UserManager.GetUserAsync(User);
+    var displayName = appUser?.FullName?.Trim();
+    if (string.IsNullOrWhiteSpace(displayName)) displayName = User.Identity?.Name ?? "";
+    var isAdmin = User.IsInRole(AppRoles.Admin);
+    var isHr = isAdmin || User.IsInRole(AppRoles.Hr);
+    var isAcct = isAdmin || User.IsInRole(AppRoles.Accountant);
     var dayStr = Model.StatDate.ToString("yyyy-MM-dd");
+    var dayName = Model.StatDate.ToString("dddd");
 
-    string nsTitle, nsDesc, nsUrl, nsBtn, nsIcon, nsTone;
+    string nsTitle, nsDesc, nsUrl, nsBtn;
     if (Model.ActiveEmployees == 0)
     {
-        nsIcon = "◍"; nsTone = "warn";
         nsTitle = "ابدأ بإضافة الموظفين";
         nsDesc = "لا يوجد موظفون نشطون بعد. أضف الموظفين يدويًا أو استوردهم من ملف Excel قبل تسجيل الحضور.";
         nsUrl = Url.Action("Import", "Employees")!; nsBtn = "استيراد الموظفين من Excel";
     }
     else if (Model.LatestImports.Count == 0)
     {
-        nsIcon = "▤"; nsTone = "info";
         nsTitle = "استورد ملفات بصمات الحضور";
         nsDesc = "تم تسجيل الموظفين، لكن لم يُستورد أي ملف بصمات بعد. ابدأ باستيراد ملفي الدخول والخروج لهذا الشهر.";
         nsUrl = Url.Action("Index", "Import")!; nsBtn = "استيراد البصمات";
     }
     else if (Model.DaysWithoutData > 0)
     {
-        nsIcon = "◔"; nsTone = "warn";
         nsTitle = "عالج حضور اليوم";
         nsDesc = $"يوجد {Model.ActiveEmployees} موظفًا نشطًا بلا بيانات حضور مسجّلة لهذا اليوم. تأكد من استيراد بصمات اليوم ثم عالج الحضور.";
         nsUrl = Url.Action("Index", "Attendance")!; nsBtn = "معالجة الحضور";
     }
     else if (Model.NeedsReview > 0 || Model.MissingPunches > 0)
     {
-        nsIcon = "؟"; nsTone = "bad";
         nsTitle = "راجع الاستثناءات والبصمات الناقصة";
         nsDesc = $"يوجد {Model.NeedsReview} سجلًا يحتاج مراجعة و{Model.MissingPunches} بصمة ناقصة. عالجها قبل احتساب الرواتب.";
         nsUrl = Url.Action("Exceptions", "Attendance")!; nsBtn = "مراجعة الاستثناءات";
     }
     else if (Model.PendingOvertimeApprovals > 0)
     {
-        nsIcon = "◷"; nsTone = "warn";
         nsTitle = "اعتمد ساعات الإضافي";
         nsDesc = $"يوجد {Model.PendingOvertimeApprovals} يومًا بإضافي خام بانتظار الاعتماد. الإضافي غير المعتمد لا يُضاف إلى الراتب.";
         nsUrl = Url.Action("Index", "Overtime")!; nsBtn = "اعتماد الإضافي";
     }
     else if (Model.PayrollItemCount == 0)
     {
-        nsIcon = "⬣"; nsTone = "info";
         nsTitle = "احتسب كشف المرتبات";
         nsDesc = "بيانات الحضور جاهزة. انتقل إلى كشف المرتبات الشهري ثم اضغط «تحديث الحسابات» لإنشاء الكشف.";
         nsUrl = Url.Action("Index", "Payroll", new { month = Model.Month, year = Model.Year })!; nsBtn = "فتح كشف المرتبات";
     }
     else
     {
-        nsIcon = "✔"; nsTone = "ok";
         nsTitle = "الكشف جاهز للمراجعة";
         nsDesc = "تم احتساب كشف هذا الشهر. راجع الأسطر والتعديلات اليدوية ثم اعتمد الكشف أو اطبعه.";
         nsUrl = Url.Action("Index", "Payroll", new { month = Model.Month, year = Model.Year })!; nsBtn = "مراجعة كشف المرتبات";
     }
 }
 
-<div class="dash-hero">
-    <div class="dash-hero-body">
-        <h2>ملخص اليوم @dayStr</h2>
-        <div class="sub">@Model.ActiveEmployees موظف نشط · @Model.Present حاضر · @Model.Absent غائب · @Model.Late متأخر — كل الأرقام من البيانات الفعلية.</div>
+<section class="home-welcome">
+    <div class="home-welcome-body">
+        <h1>أهلًا، @displayName</h1>
+        <p class="home-date">@dayName، @dayStr</p>
     </div>
-    <form method="get" class="dash-hero-form">
-        <input type="date" name="date" value="@dayStr" aria-label="تاريخ الملخص" />
-        <select name="month" aria-label="الشهر">
-            @for (var m = 1; m <= 12; m++)
-            {
-                <option value="@m" selected="@(m == Model.Month)">@months[m - 1]</option>
-            }
-        </select>
-        <input type="number" name="year" value="@Model.Year" style="width:90px" aria-label="السنة" />
-        <button type="submit" class="btn">عرض</button>
+    <form method="get" class="home-date-form no-print" role="search" aria-label="تغيير تاريخ العرض">
+        <input type="date" name="date" value="@dayStr" aria-label="تاريخ العرض" />
+        <button type="submit" class="btn btn-ghost btn-sm">عرض</button>
     </form>
+</section>
+
+@if (isHr)
+{
+    <nav class="launcher" aria-label="وحدات الموارد البشرية والحضور">
+        <a class="mod" asp-controller="Employees" asp-action="Index">
+            <span class="mod-ico" style="--mod:#2563eb"><svg viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="9" cy="8" r="3.4" /><path d="M3.5 19c.6-3 2.8-4.6 5.5-4.6s4.9 1.6 5.5 4.6" /><circle cx="16.7" cy="9" r="2.6" /><path d="M15.4 14.6c2.9.1 4.4 1.6 5 4" /></svg></span>
+            <span class="mod-title">الموظفون</span>
+            <span class="mod-desc">بيانات الموظفين وإضافتها</span>
+        </a>
+        <a class="mod" asp-controller="Departments" asp-action="Index">
+            <span class="mod-ico" style="--mod:#0d9488"><svg viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="4" y="3.5" width="16" height="17" rx="1.5" /><path d="M9 21v-3.5h6V21M8 7.5h2M8 11h2M14 7.5h2M14 11h2" /></svg></span>
+            <span class="mod-title">الأقسام</span>
+            <span class="mod-desc">الأقسام والهيكل التنظيمي</span>
+        </a>
+        <a class="mod" asp-controller="Import" asp-action="Index">
+            <span class="mod-ico" style="--mod:#7c3aed"><svg viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 3.5v11M7.5 10.5 12 15l4.5-4.5" /><path d="M4.5 16.5v2.2A1.3 1.3 0 0 0 5.8 20h12.4a1.3 1.3 0 0 0 1.3-1.3v-2.2" /></svg></span>
+            <span class="mod-title">استيراد البصمات</span>
+            <span class="mod-desc">ملفا الدخول والخروج</span>
+        </a>
+        <a class="mod" asp-controller="Attendance" asp-action="Index">
+            <span class="mod-ico" style="--mod:#0284c7"><svg viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="8" /><path d="M12 7.5V12l3 2" /></svg></span>
+            <span class="mod-title">الحضور اليومي</span>
+            <span class="mod-desc">حضور وانصراف اليوم</span>
+        </a>
+        <a class="mod" asp-controller="Attendance" asp-action="Monthly">
+            <span class="mod-ico" style="--mod:#059669"><svg viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3.5" y="5" width="17" height="15.5" rx="1.8" /><path d="M3.5 9.5h17M8 3v3.6M16 3v3.6" /><path d="M7.5 13.5h2M11.5 13.5h2M15.5 13.5h1M7.5 16.8h2M11.5 16.8h2" /></svg></span>
+            <span class="mod-title">الحضور الشهري</span>
+            <span class="mod-desc">الملخص الشهري للحضور</span>
+        </a>
+        <a class="mod" asp-controller="Attendance" asp-action="Exceptions">
+            <span class="mod-ico" style="--mod:#dc2626"><svg viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 4 2.8 19.5h18.4L12 4Z" /><path d="M12 10v4M12 16.8v.3" /></svg></span>
+            <span class="mod-title">الاستثناءات</span>
+            <span class="mod-desc">مراجعة الحالات المعلقة</span>
+        </a>
+        <a class="mod" asp-controller="Shifts" asp-action="Index">
+            <span class="mod-ico" style="--mod:#4f46e6"><svg viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 6.5h16M4 12h16M4 17.5h16" /><circle cx="9" cy="6.5" r="2" fill="#fff" /><circle cx="15.5" cy="12" r="2" fill="#fff" /><circle cx="7.5" cy="17.5" r="2" fill="#fff" /></svg></span>
+            <span class="mod-title">الورديات</span>
+            <span class="mod-desc">مواعيد وفترات العمل</span>
+        </a>
+        <a class="mod" asp-controller="Holidays" asp-action="Index">
+            <span class="mod-ico" style="--mod:#b45309"><svg viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 3.5V11M12 11l5.5-5.5M5 13.5h14" /><path d="M7 13.5V18a5 5 0 0 0 10 0v-4.5" /></svg></span>
+            <span class="mod-title">العطلات</span>
+            <span class="mod-desc">العطلات وأيام الراحة</span>
+        </a>
+        <a class="mod" asp-controller="Leaves" asp-action="Index">
+            <span class="mod-ico" style="--mod:#0e7490"><svg viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3.5" y="5" width="17" height="15.5" rx="1.8" /><path d="M3.5 9.5h17" /><path d="m8.5 14.5 2.3 2.3 4.7-4.8" /></svg></span>
+            <span class="mod-title">الإجازات</span>
+            <span class="mod-desc">طلبات وأرصدة الإجازات</span>
+        </a>
+    </nav>
+}
+
+@if (isAcct)
+{
+    <nav class="launcher" aria-label="وحدات الرواتب">
+        <a class="mod" asp-controller="Payroll" asp-action="Index">
+            <span class="mod-ico" style="--mod:#047857"><svg viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3" y="6.5" width="18" height="11" rx="1.8" /><circle cx="12" cy="12" r="2.6" /><path d="M6.5 9.5h.3M17.2 14.5h.3" /></svg></span>
+            <span class="mod-title">الرواتب</span>
+            <span class="mod-desc">كشف المرتبات الشهري</span>
+        </a>
+        <a class="mod" asp-controller="Overtime" asp-action="Index">
+            <span class="mod-ico" style="--mod:#c2410c"><svg viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="13" r="7.5" /><path d="M12 9.5V13l2.5 1.6M9.5 3.5h5" /></svg></span>
+            <span class="mod-title">العمل الإضافي</span>
+            <span class="mod-desc">اعتماد ساعات الإضافي</span>
+        </a>
+        <a class="mod" asp-controller="Loans" asp-action="Index">
+            <span class="mod-ico" style="--mod:#a21caf"><svg viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3.5 8.5A1.5 1.5 0 0 1 5 7h13.5a1.5 1.5 0 0 1 1.5 1.5V18a1.5 1.5 0 0 1-1.5 1.5H5A1.5 1.5 0 0 1 3.5 18V8.5Z" /><path d="M3.5 10h16.5M16.5 14.5h2" /></svg></span>
+            <span class="mod-title">السلف</span>
+            <span class="mod-desc">سلف الموظفين</span>
+        </a>
+        <a class="mod" asp-controller="Deductions" asp-action="Index">
+            <span class="mod-ico" style="--mod:#b91c1c"><svg viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="8" /><path d="M8 12h8" /></svg></span>
+            <span class="mod-title">الخصومات</span>
+            <span class="mod-desc">الخصومات والجزاءات</span>
+        </a>
+    </nav>
+}
+
+<nav class="launcher" aria-label="التقارير والإدارة">
+    <a class="mod" asp-controller="Reports" asp-action="Index">
+        <span class="mod-ico" style="--mod:#334155"><svg viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 20V4" /><path d="M4 20h16" /><path d="M8.5 16v-5M13 16V7.5M17.5 16v-3" /></svg></span>
+        <span class="mod-title">التقارير</span>
+        <span class="mod-desc">التقارير اليومية والشهرية والتصدير</span>
+    </a>
+    @if (isAdmin)
+    {
+        <a class="mod" asp-controller="Users" asp-action="Index">
+            <span class="mod-ico" style="--mod:#475569"><svg viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="9" cy="8" r="3.2" /><path d="M3.5 19c.6-2.8 2.7-4.3 5.5-4.3s4.9 1.5 5.5 4.3" /><circle cx="17" cy="10" r="2.2" /><path d="m15.5 15.5 1 1 2-2.2M18.5 18.5l.7.7 1.5-1.7" /></svg></span>
+            <span class="mod-title">المستخدمون</span>
+            <span class="mod-desc">الحسابات والصلاحيات</span>
+        </a>
+        <a class="mod" asp-controller="Settings" asp-action="Index">
+            <span class="mod-ico" style="--mod:#65a30d"><svg viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="3" /><path d="M19 12a7 7 0 0 0-.14-1.4l2-1.55-2-3.46-2.36.95A7 7 0 0 0 14 5.1L13.7 2.6h-3.4L10 5.1a7 7 0 0 0-2.5 1.44l-2.36-.95-2 3.46 2 1.55a7 7 0 0 0 0 2.8l-2 1.55 2 3.46 2.36-.95a7 7 0 0 0 2.5 1.44l.3 2.5h3.4l.3-2.5a7 7 0 0 0 2.5-1.44l2.36.95 2-3.46-2-1.55c.1-.46.14-.93.14-1.4Z" /></svg></span>
+            <span class="mod-title">الإعدادات</span>
+            <span class="mod-desc">إعدادات النظام والسياسات</span>
+        </a>
+    }
+</nav>
+
+<div class="home-stats" aria-label="ملخص سريع">
+    <a class="home-stat" asp-controller="Employees" asp-action="Index">
+        <span class="k">إجمالي الموظفين</span><span class="v">@Model.ActiveEmployees</span>
+    </a>
+    <a class="home-stat ok" asp-controller="Attendance" asp-action="Index" asp-route-from="@dayStr" asp-route-to="@dayStr">
+        <span class="k">الحضور اليوم</span><span class="v">@Model.Present</span>
+    </a>
+    <a class="home-stat bad" asp-controller="Attendance" asp-action="Index" asp-route-from="@dayStr" asp-route-to="@dayStr">
+        <span class="k">الغياب اليوم</span><span class="v">@Model.Absent</span>
+    </a>
 </div>
 
-<div class="next-step @nsTone">
-    <div class="next-step-ico" aria-hidden="true">@nsIcon</div>
+<div class="next-step">
     <div class="next-step-body">
         <div class="next-step-k">الخطوة التالية</div>
         <h3>@nsTitle</h3>
         <p>@nsDesc</p>
     </div>
     <a class="btn btn-primary next-step-btn" href="@nsUrl">@nsBtn</a>
-</div>
-
-<div class="stat-grid">
-    <a class="stat" asp-controller="Employees" asp-action="Index">
-        <span class="stat-ico">◍</span>
-        <span class="stat-main"><span class="label">الموظفون النشطون</span><span class="value">@Model.ActiveEmployees</span><span class="hint">موظف على العمل</span></span>
-    </a>
-    <a class="stat ok" asp-controller="Attendance" asp-action="Index" asp-route-from="@dayStr" asp-route-to="@dayStr">
-        <span class="stat-ico">✔</span>
-        <span class="stat-main"><span class="label">حاضرون اليوم</span><span class="value">@Model.Present</span><span class="hint">تم تسجيل بصمة دخول</span></span>
-    </a>
-    <a class="stat bad" asp-controller="Attendance" asp-action="Index" asp-route-from="@dayStr" asp-route-to="@dayStr">
-        <span class="stat-ico">✕</span>
-        <span class="stat-main"><span class="label">غائبون اليوم</span><span class="value">@Model.Absent</span><span class="hint">بعد معالجة الحضور</span></span>
-    </a>
-    <a class="stat warn" asp-controller="Attendance" asp-action="Index" asp-route-from="@dayStr" asp-route-to="@dayStr">
-        <span class="stat-ico">◷</span>
-        <span class="stat-main"><span class="label">متأخرون</span><span class="value">@Model.Late</span><span class="hint">تجاوزوا فترة السماح</span></span>
-    </a>
-    <a class="stat bad" asp-controller="Attendance" asp-action="Exceptions">
-        <span class="stat-ico">؟</span>
-        <span class="stat-main"><span class="label">بصمات ناقصة</span><span class="value">@Model.MissingPunches</span><span class="hint">دخول @Model.MissingEntry / خروج @Model.MissingExit</span></span>
-    </a>
-    <a class="stat warn" asp-controller="Attendance" asp-action="Exceptions">
-        <span class="stat-ico">◌</span>
-        <span class="stat-main"><span class="label">يحتاج مراجعة</span><span class="value">@Model.NeedsReview</span><span class="hint">وردية غامضة: @Model.AmbiguousShifts</span></span>
-    </a>
-    <div class="stat">
-        <span class="stat-ico">☾</span>
-        <span class="stat-main"><span class="label">إجازات اليوم</span><span class="value">@Model.OnLeave</span><span class="hint">مدفوعة وغير مدفوعة</span></span>
-    </div>
-    <div class="stat">
-        <span class="stat-ico">▦</span>
-        <span class="stat-main"><span class="label">راحة/عطلة</span><span class="value">@Model.RestOrHoliday</span><span class="hint">جمعة أو عطلة رسمية</span></span>
-    </div>
-</div>
-
-<div class="stat-grid">
-    <a class="stat warn" asp-controller="Overtime" asp-action="Index">
-        <span class="stat-ico">◷</span>
-        <span class="stat-main"><span class="label">إضافي بانتظار الاعتماد</span><span class="value">@Model.PendingOvertimeApprovals</span><span class="hint">أيام بها إضافي خام غير معتمد</span></span>
-    </a>
-    <div class="stat">
-        <span class="stat-ico">◔</span>
-        <span class="stat-main"><span class="label">إضافي الشهر (خام)</span><span class="value">@Model.OvertimeHoursMonth <small>ساعة</small></span><span class="hint">معتمد: @Model.ApprovedOvertimeHoursMonth ساعة</span></span>
-    </div>
-    <div class="stat bad">
-        <span class="stat-ico">−</span>
-        <span class="stat-main"><span class="label">خصومات الشهر</span><span class="value">@Model.TotalDeductions.ToString("N2")</span><span class="hint">خصومات معتمدة + سلف @Model.TotalLoans.ToString("N2")</span></span>
-    </div>
-    <a class="stat ok" asp-controller="Payroll" asp-action="Index" asp-route-month="@Model.Month" asp-route-year="@Model.Year">
-        <span class="stat-ico">⬣</span>
-        <span class="stat-main"><span class="label">صافي كشف الشهر</span><span class="value">@Model.TotalNetPayroll.ToString("N2") <small>@currency</small></span><span class="hint">
-            @if (Model.PayrollItemCount > 0)
-            {
-                <span>@Model.PayrollItemCount موظف — إجمالي @Model.TotalGrossPayroll.ToString("N2") — الحالة:</span>
-                <span class="badge info">@ExcelExportService.PayrollStatusText((PayrollStatus)Model.PayrollStatus)</span>
-            }
-            else
-            {
-                <span>لم يُحتسب كشف لهذا الشهر بعد</span>
-            }
-        </span></span>
-    </a>
-</div>
-
-<div class="card">
-    <div class="card-head"><h3>إجراءات سريعة</h3></div>
-    <div class="card-body">
-        <div class="qa-grid">
-            <a class="qa" asp-controller="Import" asp-action="Index"><span class="qa-ico">⇩</span> استيراد البصمات</a>
-            <a class="qa" asp-controller="Attendance" asp-action="Index"><span class="qa-ico">◔</span> الحضور اليومي</a>
-            <a class="qa" asp-controller="Reports" asp-action="Departments"><span class="qa-ico">▤</span> تقارير الأقسام</a>
-            <a class="qa" asp-controller="Employees" asp-action="Index"><span class="qa-ico">◍</span> الموظفون</a>
-            <a class="qa" asp-controller="Payroll" asp-action="Index"><span class="qa-ico">⬣</span> المرتبات</a>
-            <a class="qa" asp-controller="Overtime" asp-action="Index"><span class="qa-ico">◷</span> اعتماد الإضافي</a>
-            <a class="qa" asp-controller="Leaves" asp-action="Index"><span class="qa-ico">☾</span> الإجازات</a>
-        </div>
-    </div>
-</div>
-
-<div class="panel-grid">
-<div class="card">
-    <div class="card-head">
-        <h3>الحضور حسب القسم — @dayStr</h3>
-        <a class="btn btn-soft btn-sm" asp-controller="Reports" asp-action="Daily" asp-route-from="@dayStr" asp-route-to="@dayStr">التقرير التفصيلي</a>
-    </div>
-    @if (Model.Departments.Count == 0)
-    {
-        ViewData["message"] = "لا يوجد موظفون مسجلون بعد. ابدأ بإضافة الموظفين أو استيرادهم من Excel.";
-        ViewData["actionUrl"] = Url.Action("Import", "Employees");
-        ViewData["actionText"] = "استيراد الموظفين من Excel";
-        ViewData["icon"] = "◍";
-        <partial name="_Empty" />
-    }
-    else
-    {
-        <div class="table-wrap" style="margin:0">
-            <table class="data">
-                <thead>
-                <tr>
-                    <th>القسم</th><th>العدد</th><th>حضور</th><th>غياب</th><th>تأخير</th>
-                    <th>إجازات</th><th>مراجعة</th><th>نسبة الحضور</th>
-                </tr>
-                </thead>
-                <tbody>
-                @foreach (var d in Model.Departments)
-                {
-                    <tr>
-                        <td>@d.Department</td>
-                        <td class="num">@d.Total</td>
-                        <td class="num">@d.Present</td>
-                        <td class="num">@d.Absent</td>
-                        <td class="num">@d.Late</td>
-                        <td class="num">@d.OnLeave</td>
-                        <td class="num">@d.NeedsReview</td>
-                        <td style="min-width:120px">
-                            <div class="bar"><span style="width:@(d.PresentRate)%"></span></div>
-                            <span class="hint">@d.PresentRate%</span>
-                        </td>
-                    </tr>
-                }
-                </tbody>
-            </table>
-        </div>
-    }
-</div>
-
-<div class="card">
-    <div class="card-head">
-        <div>
-            <h3>اتجاه صافي الرواتب — آخر 6 أشهر</h3>
-            <div class="sub">من الكشوف غير الملغاة في قاعدة البيانات.</div>
-        </div>
-        <a class="btn btn-soft btn-sm" asp-controller="Reports" asp-action="Index">مركز التقارير</a>
-    </div>
-    @if (Model.PayrollTrend.Count == 0)
-    {
-        ViewData["message"] = "لا توجد كشوف رواتب بعد لعرض الاتجاه.";
-        ViewData["hint"] = "احتسب كشف الشهر من صفحة المرتبات ليظهر هنا.";
-        ViewData["icon"] = "⬣";
-        <partial name="_Empty" />
-    }
-    else
-    {
-        var maxNet = Model.PayrollTrend.Max(p => p.TotalNet);
-        if (maxNet <= 0) { maxNet = 1; }
-        <div class="table-wrap" style="margin:0">
-            <table class="data">
-                <thead><tr><th>الفترة</th><th>الموظفون</th><th>صافي الكشف</th><th style="min-width:160px">الاتجاه</th></tr></thead>
-                <tbody>
-                @foreach (var p in Model.PayrollTrend)
-                {
-                    var pct = Math.Round(p.TotalNet * 100m / maxNet, 1);
-                    <tr>
-                        <td class="num"><a asp-controller="Payroll" asp-action="Index" asp-route-year="@p.Year" asp-route-month="@p.Month">@p.Label</a></td>
-                        <td class="num">@p.ItemCount</td>
-                        <td class="money">@p.TotalNet.ToString("N2")</td>
-                        <td style="min-width:160px">
-                            <div class="bar"><span style="width:@(pct)%"></span></div>
-                            <span class="hint">@pct% من أعلى شهر</span>
-                        </td>
-                    </tr>
-                }
-                </tbody>
-            </table>
-        </div>
-    }
-</div>
-</div>
-
-<div class="card">
-    <div class="card-head">
-        <h3>آخر عمليات استيراد البصمات</h3>
-        <a class="btn btn-soft btn-sm" asp-controller="Import" asp-action="Index">استيراد ملف جديد</a>
-    </div>
-    @if (Model.LatestImports.Count == 0)
-    {
-        ViewData["message"] = "لم يتم استيراد أي ملف بصمات بعد.";
-        ViewData["actionUrl"] = Url.Action("Index", "Import");
-        ViewData["actionText"] = "استيراد ملف بصمات";
-        ViewData["icon"] = "▤";
-        <partial name="_Empty" />
-    }
-    else
-    {
-        <div class="table-wrap" style="margin:0">
-            <table class="data">
-                <thead>
-                <tr><th>الملف</th><th>تاريخ الاستيراد</th><th>المستخدم</th><th>إجمالي</th><th>ناجح</th><th>مكرر</th><th>غير صالح</th><th>موظف غير معروف</th><th></th></tr>
-                </thead>
-                <tbody>
-                @foreach (var b in Model.LatestImports)
-                {
-                    <tr>
-                        <td class="wrap">@b.FileName</td>
-                        <td class="num">@b.ImportedAt.ToLocalTime().ToString("yyyy-MM-dd HH:mm")</td>
-                        <td>@(b.ImportedByName ?? "-")</td>
-                        <td class="num">@b.TotalRows</td>
-                        <td class="num">@b.SuccessRows</td>
-                        <td class="num">@b.DuplicateRows</td>
-                        <td class="num">@b.InvalidRows</td>
-                        <td class="num">@b.UnknownEmployeeRows</td>
-                        <td><a class="btn btn-ghost btn-sm" asp-controller="Import" asp-action="Details" asp-route-id="@b.Id">عرض</a></td>
-                    </tr>
-                }
-                </tbody>
-            </table>
-        </div>
-    }
-</div>
-
-<div class="card">
-    <div class="card-head"><h3>المسار اليومي المعتاد</h3></div>
-    <div class="card-body btn-row">
-        <a class="btn btn-soft" asp-controller="Import" asp-action="Index">1) استيراد البصمات</a>
-        <a class="btn btn-soft" asp-controller="Attendance" asp-action="Index">2) مراجعة الحضور</a>
-        <a class="btn btn-soft" asp-controller="Overtime" asp-action="Index">3) اعتماد الإضافي</a>
-        <a class="btn btn-soft" asp-controller="Reports" asp-action="Daily">4) التقرير اليومي</a>
-        <a class="btn btn-soft" asp-controller="Payroll" asp-action="Index">5) احتساب الرواتب</a>
-    </div>
 </div>
