@@ -2,8 +2,15 @@
 @{
     ViewData["Title"] = "استيراد البصمات";
     var batches = ViewBag.Batches as List<ImportBatch> ?? new List<ImportBatch>();
+    ViewData["Subtitle"] = "ملفا الدخول والخروج المستقلان وسجل الاستيراد";
 }
-
+<div class="page-hero">
+    <div class="page-hero-ico" aria-hidden="true">⇩</div>
+    <div class="page-hero-body">
+        <h2>استيراد البصمات</h2>
+        <div class="sub">منطقتان مستقلتان: ملف الدخول وملف الخروج — المطابقة بكود الموظف لا بالاسم</div>
+    </div>
+</div>
 <div class="card">
     <div class="card-head">
         <div>

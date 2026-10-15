@@ -3,7 +3,19 @@
 @model HrPayroll.Web.ViewModels.EmployeeIndexViewModel
 @{
     ViewData["Title"] = "الموظفون";
+    ViewData["Subtitle"] = "البحث والتصفية وإدارة بيانات الموظفين";
 }
+<div class="page-hero">
+    <div class="page-hero-ico" aria-hidden="true">◍</div>
+    <div class="page-hero-body">
+        <h2>إدارة الموظفين</h2>
+        <div class="sub">بحث بالاسم والكود والبصمة · تصفية بالقسم والوردية والحالة · إضافة وتعديل وتعطيل</div>
+    </div>
+    <div class="page-hero-actions no-print">
+        <a class="btn btn-soft btn-sm" asp-action="Import">استيراد من Excel</a>
+        <a class="btn btn-primary btn-sm" asp-action="Create" style="background:#fff;color:var(--brand-900);border-color:#fff">+ إضافة موظف</a>
+    </div>
+</div>
 <div class="card">
     <div class="card-head">
         <h2>إدارة الموظفين</h2>

@@ -13,7 +13,18 @@
         ["status"] = f.Status.HasValue ? ((int)f.Status.Value).ToString() : string.Empty,
         ["search"] = f.Search ?? string.Empty
     };
+    ViewData["Subtitle"] = "سجلات الحضور اليومية من البصمات الفعلية";
 }
+<div class="page-hero">
+    <div class="page-hero-ico" aria-hidden="true">◔</div>
+    <div class="page-hero-body">
+        <h2>الحضور اليومي</h2>
+        <div class="sub">@f.PeriodText — الدخول والخروج والتأخير والإضافي والحالة لكل موظف</div>
+    </div>
+    <div class="page-hero-actions no-print">
+        <a class="btn btn-soft btn-sm" asp-controller="Reports" asp-action="Departments" asp-all-route-data="q">تقارير الأقسام</a>
+    </div>
+</div>
 <div class="card">
     <div class="card-head">
         <div>

@@ -30,10 +30,20 @@
         _ => "c-empty"
     };
 }
+<div class="page-hero">
+    <div class="page-hero-ico" aria-hidden="true">▦</div>
+    <div class="page-hero-body">
+        <h2>الحضور الشهري — @months[Model.Month - 1] @Model.Year</h2>
+        <div class="sub">مصفوفة موظف × يوم من سجلات الحضور المعالجة</div>
+    </div>
+    <div class="page-hero-actions no-print">
+        <a class="btn btn-soft btn-sm" asp-action="Index">الحضور اليومي</a>
+    </div>
+</div>
 <div class="card">
     <div class="card-head">
         <div>
-            <h2>الحضور الشهري — @months[Model.Month - 1] @Model.Year</h2>
+            <h2>المصفوفة (@Model.Rows.Count موظف)</h2>
             <div class="sub">مصفوفة موظف × يوم من سجلات الحضور المعالجة. فارغ = لا سجل معالج لهذا اليوم.</div>
         </div>
         <div class="btn-row no-print">

@@ -11,7 +11,15 @@
         ["employeeId"] = f.EmployeeId?.ToString() ?? string.Empty,
         ["shiftId"] = f.ShiftId?.ToString() ?? string.Empty
     };
+    ViewData["Subtitle"] = "اعتماد الساعات الإضافية قبل دخولها الراتب";
 }
+<div class="page-hero">
+    <div class="page-hero-ico" aria-hidden="true">◷</div>
+    <div class="page-hero-body">
+        <h2>اعتماد الإضافي</h2>
+        <div class="sub">@f.PeriodText — بسعر الساعة العادي وبدون مضاعفة، ولا يُدفع إلا المعتمد</div>
+    </div>
+</div>
 <div class="card">
     <div class="card-head">
         <div>

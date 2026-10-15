@@ -2,7 +2,19 @@
 @model HrPayroll.Web.ViewModels.LeaveIndexViewModel
 @{
     ViewData["Title"] = "الإجازات";
+    ViewData["Subtitle"] = "طلبات الإجازات والاعتماد والأرصدة";
 }
+<div class="page-hero">
+    <div class="page-hero-ico" aria-hidden="true">☾</div>
+    <div class="page-hero-body">
+        <h2>إدارة الإجازات</h2>
+        <div class="sub">طلبات معلّقة: @Model.PendingCount — أيام عمل معتمدة: @Model.ApprovedWorkingDays</div>
+    </div>
+    <div class="page-hero-actions no-print">
+        <a class="btn btn-soft btn-sm" asp-action="ConvertAbsence">تحويل غياب إلى إجازة</a>
+        <a class="btn btn-primary btn-sm" asp-action="Create" style="background:#fff;color:var(--brand-900);border-color:#fff">+ إضافة إجازة</a>
+    </div>
+</div>
 <div class="card">
     <div class="card-head">
         <div>
