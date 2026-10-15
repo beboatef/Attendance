@@ -1,6 +1,5 @@
 @{
     var title = ViewData["Title"] as string;
-    var company = ViewData["CompanyName"] as string ?? "شركة الموارد البشرية";
 }
 <!DOCTYPE html>
 <html lang="ar" dir="rtl">
@@ -8,36 +7,16 @@
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <meta name="robots" content="noindex, nofollow" />
-    <title>@title — نظام الموارد البشرية والرواتب</title>
+    <title>@title — نظام الحضور والموارد البشرية</title>
     <link rel="stylesheet" href="~/lib/bootstrap/dist/css/bootstrap.rtl.min.css" />
     <link rel="stylesheet" href="~/css/site.css" asp-append-version="true" />
 </head>
 <body class="auth-body">
-<div class="auth-shell">
-    <aside class="auth-brand" aria-hidden="false">
-        <div class="auth-brand-top">
-            <span class="auth-logo">HR</span>
-            <span class="auth-brand-name">الموارد البشرية<br /><small>والرواتب</small></span>
-        </div>
-        <div class="auth-brand-core">
-            <h2>حضور دقيق<br />ورواتب موثوقة</h2>
-            <p>منصة واحدة لإدارة بصمات الحضور، واعتماد الإضافي والإجازات، واحتساب كشف المرتبات الشهري.</p>
-            <ul class="auth-features">
-                <li>استيراد بصمات الحضور من ملفات Excel</li>
-                <li>تصنيف الورديات وحساب التأخير والإضافي</li>
-                <li>كشف مرتبات شهري قابل للتحرير والمراجعة والقفل</li>
-                <li>تقارير وتصدير Excel و PDF بالعربية</li>
-            </ul>
-        </div>
-        <div class="auth-brand-foot">@company — كل الحقوق محفوظة</div>
-    </aside>
-
-    <main class="auth-panel">
-        <div class="auth-panel-inner">
-            @RenderBody()
-        </div>
-    </main>
-</div>
+<main class="login-page">
+    <div class="login-wrap">
+        @RenderBody()
+    </div>
+</main>
 
 <script src="~/lib/jquery/dist/jquery.min.js"></script>
 <script src="~/lib/bootstrap/dist/js/bootstrap.bundle.min.js"></script>

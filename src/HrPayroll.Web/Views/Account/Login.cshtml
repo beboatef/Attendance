@@ -7,11 +7,11 @@
                          && ViewData.ModelState[string.Empty]?.Errors.Count > 0;
 }
 
-<div class="auth-card">
-    <div class="auth-card-head">
-        <h1>تسجيل الدخول</h1>
-        <p>أدخل بيانات حسابك للمتابعة إلى النظام.</p>
-    </div>
+<div class="login-card">
+    <div class="login-logo" aria-hidden="true">HR</div>
+    <div class="login-app">نظام الحضور والموارد البشرية</div>
+    <h1>تسجيل الدخول</h1>
+    <p class="login-desc">سجّل الدخول للوصول إلى لوحة التحكم.</p>
 
     @if (showDemoHint)
     {
@@ -80,7 +80,7 @@
         </button>
     </form>
 
-    <p class="auth-foot">بالدخول أنت توافق على سياسة استخدام بيانات الحضور والرواتب داخل الشركة.</p>
+    <p class="login-foot">بالدخول أنت توافق على سياسة استخدام بيانات الحضور والرواتب داخل الشركة.</p>
 </div>
 
 @section Scripts { <partial name="_ValidationScriptsPartial" /> }
