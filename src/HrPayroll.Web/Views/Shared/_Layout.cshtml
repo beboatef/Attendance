@@ -6,165 +6,84 @@
     var isAuth = SignInManager.IsSignedIn(User);
     var isAdmin = User.IsInRole(AppRoles.Admin);
     var isHr = isAdmin || User.IsInRole(AppRoles.Hr);
-    var isAcct = isAdmin || User.IsInRole(AppRoles.Accountant);
-    var controller = (string?)ViewContext.RouteData.Values["controller"] ?? "";
-    var action = (string?)ViewContext.RouteData.Values["action"] ?? "";
-
-    string Nav(string c, string? a = null)
-    {
-        var active = string.Equals(controller, c, StringComparison.OrdinalIgnoreCase)
-                     && (a is null
-                         ? action == "Index" || action == ""
-                         : string.Equals(action, a, StringComparison.OrdinalIgnoreCase));
-        return active ? "active" : "";
-    }
-
-    bool InGroup(params string[] controllers)
-        => controllers.Any(c => string.Equals(controller, c, StringComparison.OrdinalIgnoreCase));
-
-    var employeesOpen = InGroup("Employees", "Departments", "JobTitles");
-    var attendanceOpen = InGroup("Import", "Attendance", "Shifts", "Holidays", "Leaves");
-    var payrollOpen = InGroup("Payroll", "Overtime", "Loans", "Deductions");
-    var settingsOpen = InGroup("Settings", "Users");
     var title = ViewData["Title"] as string;
     var subtitle = ViewData["Subtitle"] as string;
     var userName = User.Identity?.Name ?? "";
     var initial = userName.Length > 0 ? userName.Trim()[0].ToString() : "م";
 }
 <!DOCTYPE html>
-<html lang="ar" dir="rtl">
+<html lang="ar" dir="rtl" data-theme="light">
 <head>
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>@title — نظام الموارد البشرية والرواتب</title>
+    <script>
+        // تطبيق السمة المحفوظة مبكرًا لتفادي وميض السمة الخاطئة
+        (function () {
+            try {
+                var t = localStorage.getItem('hr.theme');
+                if (t === 'dark' || t === 'light') document.documentElement.setAttribute('data-theme', t);
+                else if (window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches)
+                    document.documentElement.setAttribute('data-theme', 'dark');
+            } catch (e) { /* التخزين المحلي غير متاح */ }
+        })();
+    </script>
     <link rel="stylesheet" href="~/lib/bootstrap/dist/css/bootstrap.rtl.min.css" />
     <link rel="stylesheet" href="~/css/site.css" asp-append-version="true" />
 </head>
 <body>
 @if (isAuth)
 {
-    <div class="app-shell" id="appShell">
-        <aside class="sidebar" id="sidebar">
-            <div class="brand">
+    <div class="topbar-wrap">
+        <header class="topbar topbar-slim">
+            <a class="brand-inline" asp-controller="Dashboard" asp-action="Index" title="الرئيسية">
                 <span class="logo">HR</span>
-                <span class="brand-text">الموارد البشرية<br /><small>الحضور والرواتب</small></span>
-                <button type="button" class="side-toggle" id="sideToggle" title="طي/فتح القائمة" aria-label="طي القائمة">≡</button>
-            </div>
-
-            <nav class="side-nav">
-                <div class="nav-section">الرئيسية</div>
-                <a class="@Nav("Dashboard")" asp-controller="Dashboard" asp-action="Index">
-                    <span class="ico">◈</span><span class="txt">لوحة التحكم</span>
-                </a>
-
+                <span class="brand-text">الموارد البشرية <small>الحضور والرواتب</small></span>
+            </a>
+            <a class="topbar-home" asp-controller="Dashboard" asp-action="Index">الرئيسية</a>
+            <div class="topbar-actions">
                 @if (isHr)
                 {
-                    <div class="nav-section">إدارة الموظفين</div>
-                    <details class="nav-group" open="@(employeesOpen ? "open" : null)">
-                        <summary><span class="ico">○</span><span class="txt">الموظفون والهيكل</span><span class="chev">›</span></summary>
-                        <a class="@Nav("Employees", "Index")" asp-controller="Employees" asp-action="Index"><span class="txt">قائمة الموظفين</span></a>
-                        <a class="@Nav("Employees", "Create")" asp-controller="Employees" asp-action="Create"><span class="txt">إضافة موظف</span></a>
-                        <a class="@Nav("Employees", "Import")" asp-controller="Employees" asp-action="Import"><span class="txt">استيراد من Excel</span></a>
-                        <a class="@Nav("Departments")" asp-controller="Departments" asp-action="Index"><span class="txt">الأقسام</span></a>
-                        <a asp-controller="Departments" asp-action="Structure"><span class="txt">الهيكل التنظيمي</span></a>
-                        <a class="@Nav("JobTitles")" asp-controller="JobTitles" asp-action="Index"><span class="txt">المسميات الوظيفية</span></a>
-                    </details>
-
-                    <div class="nav-section">الحضور والانصراف</div>
-                    <details class="nav-group" open="@(attendanceOpen ? "open" : null)">
-                        <summary><span class="ico">◔</span><span class="txt">الحضور والانصراف</span><span class="chev">›</span></summary>
-                        <a class="@Nav("Import")" asp-controller="Import" asp-action="Index"><span class="txt">استيراد البصمات</span></a>
-                        <a class="@Nav("Attendance", "Index")" asp-controller="Attendance" asp-action="Index"><span class="txt">الحضور اليومي</span></a>
-                        <a asp-controller="Attendance" asp-action="Monthly"><span class="txt">الحضور الشهري</span></a>
-                        <a class="@Nav("Attendance", "Exceptions")" asp-controller="Attendance" asp-action="Exceptions"><span class="txt">الاستثناءات والمراجعة</span></a>
-                        <a class="@Nav("Shifts")" asp-controller="Shifts" asp-action="Index"><span class="txt">الورديات</span></a>
-                        <a class="@Nav("Holidays")" asp-controller="Holidays" asp-action="Index"><span class="txt">العطلات وأيام الراحة</span></a>
-                        <a class="@Nav("Leaves", "Index")" asp-controller="Leaves" asp-action="Index"><span class="txt">الإجازات</span></a>
-                        <a class="@Nav("Leaves", "ConvertAbsence")" asp-controller="Leaves" asp-action="ConvertAbsence"><span class="txt">تحويل غياب إلى إجازة</span></a>
-                    </details>
-                }
-
-                @if (isAcct)
-                {
-                    <div class="nav-section">الرواتب</div>
-                    <details class="nav-group" open="@(payrollOpen ? "open" : null)">
-                        <summary><span class="ico">⬣</span><span class="txt">كشف المرتبات</span><span class="chev">›</span></summary>
-                        <a class="@Nav("Payroll", "Index")" asp-controller="Payroll" asp-action="Index"><span class="txt">كشف المرتبات الشهري</span></a>
-                        <a class="@Nav("Overtime")" asp-controller="Overtime" asp-action="Index"><span class="txt">اعتماد الإضافي</span></a>
-                        <a class="@Nav("Loans")" asp-controller="Loans" asp-action="Index"><span class="txt">السلف</span></a>
-                        <a class="@Nav("Deductions")" asp-controller="Deductions" asp-action="Index"><span class="txt">الخصومات والجزاءات</span></a>
-                    </details>
-                }
-
-                <div class="nav-section">التقارير</div>
-                <a class="@Nav("Reports")" asp-controller="Reports" asp-action="Index">
-                    <span class="ico">▤</span><span class="txt">التقارير والتصدير</span>
-                </a>
-
-                @if (isAdmin)
-                {
-                    <div class="nav-section">النظام</div>
-                    <details class="nav-group" open="@(settingsOpen ? "open" : null)">
-                        <summary><span class="ico">⚙</span><span class="txt">الإعدادات</span><span class="chev">›</span></summary>
-                        <a class="@Nav("Settings")" asp-controller="Settings" asp-action="Index"><span class="txt">إعدادات النظام</span></a>
-                        <a class="@Nav("Users")" asp-controller="Users" asp-action="Index"><span class="txt">المستخدمون والصلاحيات</span></a>
-                    </details>
-                }
-            </nav>
-            <div class="side-foot">نظام الموارد البشرية والرواتب · v2</div>
-        </aside>
-
-        <div class="main-area">
-            <header class="topbar">
-                <button type="button" class="topbar-menu" id="mobileMenu" aria-label="القائمة">☰</button>
-                <div>
-                    <div class="topbar-title">@title</div>
-                    @if (!string.IsNullOrWhiteSpace(subtitle))
-                    {
-                        <div class="topbar-sub">@subtitle</div>
-                    }
-                </div>
-                <div class="topbar-actions">
-                    @if (isHr)
-                    {
-                        <form class="topbar-search no-print" asp-controller="Employees" asp-action="Index" method="get">
-                            <input type="search" name="search" placeholder="بحث سريع: اسم أو كود" aria-label="بحث سريع عن موظف" />
-                            <button type="submit" class="btn btn-ghost btn-sm">بحث</button>
-                        </form>
-                    }
-                    <span class="user-chip"><span class="avatar">@initial</span> @userName</span>
-                    <form asp-controller="Account" asp-action="Logout" method="post" class="d-inline">
-                        <button type="submit" class="btn btn-ghost btn-sm">خروج</button>
+                    <form class="topbar-search no-print" asp-controller="Employees" asp-action="Index" method="get">
+                        <input type="search" name="search" placeholder="بحث سريع: اسم أو كود" aria-label="بحث سريع عن موظف" />
+                        <button type="submit" class="btn btn-ghost btn-sm">بحث</button>
                     </form>
-                </div>
-            </header>
+                }
+                <button type="button" class="theme-toggle" id="themeToggle" title="تبديل السمة (فاتح / داكن)" aria-label="تبديل السمة">
+                    <svg class="ico-sun" width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><circle cx="12" cy="12" r="4.2" /><path d="M12 2.5v2.4M12 19.1v2.4M4.3 4.3l1.7 1.7M18 18l1.7 1.7M2.5 12h2.4M19.1 12h2.4M4.3 19.7 6 18M18 6l1.7-1.7" /></svg>
+                    <svg class="ico-moon" width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M20 13.2A8 8 0 0 1 10.8 4 8 8 0 1 0 20 13.2Z" /></svg>
+                </button>
+                <span class="user-chip"><span class="avatar">@initial</span> @userName</span>
+                <form asp-controller="Account" asp-action="Logout" method="post" class="d-inline">
+                    <button type="submit" class="btn btn-ghost btn-sm">خروج</button>
+                </form>
+            </div>
+        </header>
 
-            <main class="content">
-                @if (TempData["Success"] != null)
-                {
-                    <div class="alert alert-success" data-auto-dismiss="7000">
-                        <span>@TempData["Success"]</span>
-                        <button type="button" class="close" aria-label="إغلاق">×</button>
-                    </div>
-                }
-                @if (TempData["Error"] != null)
-                {
-                    <div class="alert alert-danger">
-                        <span>@TempData["Error"]</span>
-                        <button type="button" class="close" aria-label="إغلاق">×</button>
-                    </div>
-                }
-                @if (TempData["Warning"] != null)
-                {
-                    <div class="alert alert-warning">
-                        <span>@TempData["Warning"]</span>
-                        <button type="button" class="close" aria-label="إغلاق">×</button>
-                    </div>
-                }
-                @RenderBody()
-            </main>
-        </div>
-        <div class="side-backdrop" id="sideBackdrop"></div>
+        <main class="content content-centered">
+            @if (TempData["Success"] != null)
+            {
+                <div class="alert alert-success" data-auto-dismiss="7000">
+                    <span>@TempData["Success"]</span>
+                    <button type="button" class="close" aria-label="إغلاق">×</button>
+                </div>
+            }
+            @if (TempData["Error"] != null)
+            {
+                <div class="alert alert-danger">
+                    <span>@TempData["Error"]</span>
+                    <button type="button" class="close" aria-label="إغلاق">×</button>
+                </div>
+            }
+            @if (TempData["Warning"] != null)
+            {
+                <div class="alert alert-warning">
+                    <span>@TempData["Warning"]</span>
+                    <button type="button" class="close" aria-label="إغلاق">×</button>
+                </div>
+            }
+            @RenderBody()
+        </main>
     </div>
 }
 else
