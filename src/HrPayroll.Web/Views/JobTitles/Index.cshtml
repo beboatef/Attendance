@@ -4,7 +4,15 @@
     ViewData["Title"] = "المسميات الوظيفية";
     var counts = ViewBag.EmployeeCounts as Dictionary<int, int> ?? new Dictionary<int, int>();
     var departments = ViewBag.Departments as List<Department> ?? new List<Department>();
+    ViewData["Subtitle"] = "المسميات الوظيفية وتوزيع الموظفين";
 }
+<div class="page-hero">
+    <div class="page-hero-ico" aria-hidden="true">▤</div>
+    <div class="page-hero-body">
+        <h2>المسميات الوظيفية</h2>
+        <div class="sub">@Model.Count مسمى — تُستخدم في التجميع بالتقارير والهيكل التنظيمي</div>
+    </div>
+</div>
 <div class="card">
     <div class="card-head">
         <h2>المسميات الوظيفية</h2>

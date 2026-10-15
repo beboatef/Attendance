@@ -5,7 +5,15 @@
     var year = (int)(ViewBag.Year ?? DateTime.Today.Year);
     var restDays = (ViewBag.RestDays as string ?? "5").Split(',', StringSplitOptions.RemoveEmptyEntries);
     var dayNames = new[] { "الأحد", "الاثنين", "الثلاثاء", "الأربعاء", "الخميس", "الجمعة", "السبت" };
+    ViewData["Subtitle"] = "أيام الراحة الأسبوعية والعطلات الرسمية";
 }
+<div class="page-hero">
+    <div class="page-hero-ico" aria-hidden="true">▦</div>
+    <div class="page-hero-body">
+        <h2>العطلات وأيام الراحة — @year</h2>
+        <div class="sub">الجمعة يوم الراحة الافتراضي، وتُحتسب العطلات الرسمية مدفوعة دون ازدواج</div>
+    </div>
+</div>
 <div class="card">
     <div class="card-head">
         <div>

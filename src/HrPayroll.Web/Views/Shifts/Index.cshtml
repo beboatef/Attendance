@@ -3,7 +3,15 @@
 @{
     ViewData["Title"] = "الورديات";
     var isAdmin = User.IsInRole(HrPayroll.Domain.Entities.AppRoles.Admin);
+    ViewData["Subtitle"] = "مواعيد الورديات وفترات السماح";
 }
+<div class="page-hero">
+    <div class="page-hero-ico" aria-hidden="true">◔</div>
+    <div class="page-hero-body">
+        <h2>إعداد الورديات</h2>
+        <div class="sub">07:00–15:00 · 15:00–23:00 · 23:00–07:00 — الكشف تلقائي من البصمات</div>
+    </div>
+</div>
 <div class="card">
     <div class="card-head">
         <div>

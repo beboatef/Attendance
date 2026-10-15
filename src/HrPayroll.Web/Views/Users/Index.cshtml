@@ -2,7 +2,15 @@
 @{
     ViewData["Title"] = "المستخدمون والصلاحيات";
     var rows = ViewBag.Roles as List<(ApplicationUser User, string Roles)> ?? new List<(ApplicationUser, string)>();
+    ViewData["Subtitle"] = "الحسابات والأدوار والصلاحيات";
 }
+<div class="page-hero">
+    <div class="page-hero-ico" aria-hidden="true">◍</div>
+    <div class="page-hero-body">
+        <h2>المستخدمون والصلاحيات</h2>
+        <div class="sub">@rows.Count حساب — الصلاحيات مطبقة على مستوى الخادم</div>
+    </div>
+</div>
 <div class="card">
     <div class="card-head">
         <div>

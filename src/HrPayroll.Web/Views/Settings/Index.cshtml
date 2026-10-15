@@ -8,7 +8,15 @@
     var logs = ViewBag.AuditLogs as List<AuditLog> ?? new List<AuditLog>();
     var dict = settings.ToDictionary(s => s.Key, s => s.Value);
     string Val(string key, string fallback = "") => dict.TryGetValue(key, out var v) ? v : fallback;
+    ViewData["Subtitle"] = "سياسات الحضور والرواتب وسجل المراجعة";
 }
+<div class="page-hero">
+    <div class="page-hero-ico" aria-hidden="true">⚙</div>
+    <div class="page-hero-body">
+        <h2>إعدادات النظام</h2>
+        <div class="sub">قواعد الحساب المعتمدة — تُطبق على الحضور والرواتب فور حفظها</div>
+    </div>
+</div>
 <div class="card">
     <div class="card-head">
         <div>
