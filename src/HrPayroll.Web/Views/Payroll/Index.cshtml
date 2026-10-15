@@ -4,6 +4,7 @@
 @{
     ViewData["Title"] = "كشف المرتبات الشهري";
     var months = new[] { "يناير","فبراير","مارس","أبريل","مايو","يونيو","يوليو","أغسطس","سبتمبر","أكتوبر","نوفمبر","ديسمبر" };
+    ViewData["Subtitle"] = $"كشف {months[Model.Month - 1]} {Model.Year} — المجاميع والقيم من الحسابات المخزّنة";
     var run = Model.CurrentRun;
     var locked = run is not null && !Model.CanEdit;
     var badgeCls = run?.Status switch
@@ -21,11 +22,18 @@
 
 @if (run is null)
 {
+    <div class="page-hero">
+        <div class="page-hero-ico" aria-hidden="true">⬣</div>
+        <div class="page-hero-body">
+            <h2>كشف المرتبات الشهري — @months[Model.Month - 1] @Model.Year</h2>
+            <div class="sub">لا يوجد كشف محسوب لهذا الشهر بعد — ابدأ من البصمات ثم احتسب الكشف</div>
+        </div>
+    </div>
     <div class="card">
         <div class="card-head">
             <div>
-                <h2>كشف المرتبات الشهري — @months[Model.Month - 1] @Model.Year</h2>
-                <div class="sub">لا يوجد كشف محسوب لهذا الشهر بعد.</div>
+                <h2>بدء كشف جديد</h2>
+                <div class="sub">استورد البصمات وعالج الحضور أولًا، ثم أنشئ الكشف.</div>
             </div>
         </div>
         <div class="card-body">
@@ -49,17 +57,28 @@
     return;
 }
 
+<div class="page-hero">
+    <div class="page-hero-ico" aria-hidden="true">⬣</div>
+    <div class="page-hero-body">
+        <h2>كشف المرتبات — @months[Model.Month - 1] @Model.Year</h2>
+        <div class="sub">
+            إصدار @run.Version · @ExcelExportService.PayrollStatusText(run.Status)
+            @if (run.IsLocked)
+            {
+                <span>— للتصحيح يجب إعادة الفتح بسبب مُسجَّل</span>
+            }
+        </div>
+    </div>
+    <div class="page-hero-actions no-print">
+        <a class="btn btn-soft btn-sm" asp-action="ExportExcel" asp-route-id="@run.Id">⬇ تصدير Excel</a>
+        <a class="btn btn-ghost btn-sm" asp-action="ExportPdf" asp-route-id="@run.Id">تصدير PDF</a>
+    </div>
+</div>
 <div class="card sheet-head">
     <div class="sheet-head-main">
         <div class="period-block">
-            <div class="period-title">كشف المرتبات — @months[Model.Month - 1] @Model.Year</div>
-            <div class="period-sub">
-                إصدار @run.Version · <span class="badge @badgeCls">@ExcelExportService.PayrollStatusText(run.Status)</span>
-                @if (run.IsLocked)
-                {
-                    <span class="hint">— للتصحيح يجب إعادة الفتح بسبب مُسجَّل</span>
-                }
-            </div>
+            <div class="period-title">الفترة والتصفية</div>
+            <div class="period-sub">إصدار @run.Version · <span class="badge @badgeCls">@ExcelExportService.PayrollStatusText(run.Status)</span></div>
         </div>
 
         <div class="period-nav no-print">
@@ -96,8 +115,6 @@
                     <button type="submit" class="btn btn-primary btn-sm">🔄 تحديث الحسابات</button>
                 </form>
             }
-            <a class="btn btn-soft btn-sm" asp-action="ExportExcel" asp-route-id="@run.Id">⬇ تصدير Excel</a>
-            <a class="btn btn-ghost btn-sm" asp-action="ExportPdf" asp-route-id="@run.Id">تصدير PDF</a>
             @if (run.Status is PayrollStatus.Computed or PayrollStatus.PendingReview or PayrollStatus.Reopened)
             {
                 <form method="post" asp-action="Approve" class="d-inline"

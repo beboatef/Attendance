@@ -10,7 +10,15 @@
         ["employeeId"] = f.EmployeeId?.ToString() ?? string.Empty,
         ["shiftId"] = f.ShiftId?.ToString() ?? string.Empty
     };
+    ViewData["Subtitle"] = "كل التقارير والتصدير من البيانات الفعلية";
 }
+<div class="page-hero">
+    <div class="page-hero-ico" aria-hidden="true">▤</div>
+    <div class="page-hero-body">
+        <h2>مركز التقارير</h2>
+        <div class="sub">@f.PeriodText — الحضور والأقسام والإضافي والغياب والإجازات والرواتب</div>
+    </div>
+</div>
 <div class="card">
     <div class="card-head">
         <div>

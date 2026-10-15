@@ -2,6 +2,7 @@
 @model List<Department>
 @{
     ViewData["Title"] = "الأقسام";
+    ViewData["Subtitle"] = "الأقسام والمسميات وأعداد الموظفين";
     var counts = ViewBag.EmployeeCounts as Dictionary<int, int> ?? new Dictionary<int, int>();
     var jobCounts = ViewBag.JobTitleCounts as Dictionary<int, int> ?? new Dictionary<int, int>();
 }

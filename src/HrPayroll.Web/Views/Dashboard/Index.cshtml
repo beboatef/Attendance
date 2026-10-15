@@ -3,61 +3,80 @@
 @using HrPayroll.Infrastructure.Services
 @{
     ViewData["Title"] = "لوحة التحكم";
+    ViewData["Subtitle"] = "نظرة شاملة على الحضور والرواتب من البيانات الفعلية";
     var currency = ViewBag.Currency as string ?? "EGP";
     var months = new[] { "يناير","فبراير","مارس","أبريل","مايو","يونيو","يوليو","أغسطس","سبتمبر","أكتوبر","نوفمبر","ديسمبر" };
+    var dayStr = Model.StatDate.ToString("yyyy-MM-dd");
 
-    // الخطوة التالية الموصى بها — محسوبة من بيانات قاعدة البيانات الفعلية بلا قيم ثابتة.
     string nsTitle, nsDesc, nsUrl, nsBtn, nsIcon, nsTone;
     if (Model.ActiveEmployees == 0)
     {
-        nsIcon = "👥"; nsTone = "warn";
+        nsIcon = "◍"; nsTone = "warn";
         nsTitle = "ابدأ بإضافة الموظفين";
         nsDesc = "لا يوجد موظفون نشطون بعد. أضف الموظفين يدويًا أو استوردهم من ملف Excel قبل تسجيل الحضور.";
         nsUrl = Url.Action("Import", "Employees")!; nsBtn = "استيراد الموظفين من Excel";
     }
     else if (Model.LatestImports.Count == 0)
     {
-        nsIcon = "📄"; nsTone = "info";
+        nsIcon = "▤"; nsTone = "info";
         nsTitle = "استورد ملفات بصمات الحضور";
         nsDesc = "تم تسجيل الموظفين، لكن لم يُستورد أي ملف بصمات بعد. ابدأ باستيراد ملفي الدخول والخروج لهذا الشهر.";
         nsUrl = Url.Action("Index", "Import")!; nsBtn = "استيراد البصمات";
     }
     else if (Model.DaysWithoutData > 0)
     {
-        nsIcon = "🕒"; nsTone = "warn";
+        nsIcon = "◔"; nsTone = "warn";
         nsTitle = "عالج حضور اليوم";
         nsDesc = $"يوجد {Model.ActiveEmployees} موظفًا نشطًا بلا بيانات حضور مسجّلة لهذا اليوم. تأكد من استيراد بصمات اليوم ثم عالج الحضور.";
         nsUrl = Url.Action("Index", "Attendance")!; nsBtn = "معالجة الحضور";
     }
     else if (Model.NeedsReview > 0 || Model.MissingPunches > 0)
     {
-        nsIcon = "🔍"; nsTone = "bad";
+        nsIcon = "؟"; nsTone = "bad";
         nsTitle = "راجع الاستثناءات والبصمات الناقصة";
         nsDesc = $"يوجد {Model.NeedsReview} سجلًا يحتاج مراجعة و{Model.MissingPunches} بصمة ناقصة. عالجها قبل احتساب الرواتب.";
         nsUrl = Url.Action("Exceptions", "Attendance")!; nsBtn = "مراجعة الاستثناءات";
     }
     else if (Model.PendingOvertimeApprovals > 0)
     {
-        nsIcon = "⏱️"; nsTone = "warn";
+        nsIcon = "◷"; nsTone = "warn";
         nsTitle = "اعتمد ساعات الإضافي";
         nsDesc = $"يوجد {Model.PendingOvertimeApprovals} يومًا بإضافي خام بانتظار الاعتماد. الإضافي غير المعتمد لا يُضاف إلى الراتب.";
         nsUrl = Url.Action("Index", "Overtime")!; nsBtn = "اعتماد الإضافي";
     }
     else if (Model.PayrollItemCount == 0)
     {
-        nsIcon = "💰"; nsTone = "info";
+        nsIcon = "⬣"; nsTone = "info";
         nsTitle = "احتسب كشف المرتبات";
         nsDesc = "بيانات الحضور جاهزة. انتقل إلى كشف المرتبات الشهري ثم اضغط «تحديث الحسابات» لإنشاء الكشف.";
         nsUrl = Url.Action("Index", "Payroll", new { month = Model.Month, year = Model.Year })!; nsBtn = "فتح كشف المرتبات";
     }
     else
     {
-        nsIcon = "✅"; nsTone = "ok";
+        nsIcon = "✔"; nsTone = "ok";
         nsTitle = "الكشف جاهز للمراجعة";
         nsDesc = "تم احتساب كشف هذا الشهر. راجع الأسطر والتعديلات اليدوية ثم اعتمد الكشف أو اطبعه.";
         nsUrl = Url.Action("Index", "Payroll", new { month = Model.Month, year = Model.Year })!; nsBtn = "مراجعة كشف المرتبات";
     }
 }
+
+<div class="dash-hero">
+    <div class="dash-hero-body">
+        <h2>ملخص اليوم @dayStr</h2>
+        <div class="sub">@Model.ActiveEmployees موظف نشط · @Model.Present حاضر · @Model.Absent غائب · @Model.Late متأخر — كل الأرقام من البيانات الفعلية.</div>
+    </div>
+    <form method="get" class="dash-hero-form">
+        <input type="date" name="date" value="@dayStr" aria-label="تاريخ الملخص" />
+        <select name="month" aria-label="الشهر">
+            @for (var m = 1; m <= 12; m++)
+            {
+                <option value="@m" selected="@(m == Model.Month)">@months[m - 1]</option>
+            }
+        </select>
+        <input type="number" name="year" value="@Model.Year" style="width:90px" aria-label="السنة" />
+        <button type="submit" class="btn">عرض</button>
+    </form>
+</div>
 
 <div class="next-step @nsTone">
     <div class="next-step-ico" aria-hidden="true">@nsIcon</div>
@@ -69,89 +88,57 @@
     <a class="btn btn-primary next-step-btn" href="@nsUrl">@nsBtn</a>
 </div>
 
-<div class="card">
-    <div class="card-head">
-        <div>
-            <h2>ملخص اليوم @Model.StatDate.ToString("yyyy-MM-dd")</h2>
-            <div class="sub">كل الأرقام محسوبة من البيانات الفعلية للحضور والرواتب.</div>
-        </div>
-        <form method="get" class="btn-row">
-            <input type="date" name="statDate" value="@Model.StatDate.ToString("yyyy-MM-dd")" />
-            <select name="month">
-                @for (var m = 1; m <= 12; m++)
-                {
-                    <option value="@m" selected="@(m == Model.Month)">@months[m - 1]</option>
-                }
-            </select>
-            <input type="number" name="year" value="@Model.Year" style="width:90px" />
-            <button type="submit" class="btn btn-primary">عرض</button>
-        </form>
+<div class="stat-grid">
+    <a class="stat" asp-controller="Employees" asp-action="Index">
+        <span class="stat-ico">◍</span>
+        <span class="stat-main"><span class="label">الموظفون النشطون</span><span class="value">@Model.ActiveEmployees</span><span class="hint">موظف على العمل</span></span>
+    </a>
+    <a class="stat ok" asp-controller="Attendance" asp-action="Index" asp-route-from="@dayStr" asp-route-to="@dayStr">
+        <span class="stat-ico">✔</span>
+        <span class="stat-main"><span class="label">حاضرون اليوم</span><span class="value">@Model.Present</span><span class="hint">تم تسجيل بصمة دخول</span></span>
+    </a>
+    <a class="stat bad" asp-controller="Attendance" asp-action="Index" asp-route-from="@dayStr" asp-route-to="@dayStr">
+        <span class="stat-ico">✕</span>
+        <span class="stat-main"><span class="label">غائبون اليوم</span><span class="value">@Model.Absent</span><span class="hint">بعد معالجة الحضور</span></span>
+    </a>
+    <a class="stat warn" asp-controller="Attendance" asp-action="Index" asp-route-from="@dayStr" asp-route-to="@dayStr">
+        <span class="stat-ico">◷</span>
+        <span class="stat-main"><span class="label">متأخرون</span><span class="value">@Model.Late</span><span class="hint">تجاوزوا فترة السماح</span></span>
+    </a>
+    <a class="stat bad" asp-controller="Attendance" asp-action="Exceptions">
+        <span class="stat-ico">؟</span>
+        <span class="stat-main"><span class="label">بصمات ناقصة</span><span class="value">@Model.MissingPunches</span><span class="hint">دخول @Model.MissingEntry / خروج @Model.MissingExit</span></span>
+    </a>
+    <a class="stat warn" asp-controller="Attendance" asp-action="Exceptions">
+        <span class="stat-ico">◌</span>
+        <span class="stat-main"><span class="label">يحتاج مراجعة</span><span class="value">@Model.NeedsReview</span><span class="hint">وردية غامضة: @Model.AmbiguousShifts</span></span>
+    </a>
+    <div class="stat">
+        <span class="stat-ico">☾</span>
+        <span class="stat-main"><span class="label">إجازات اليوم</span><span class="value">@Model.OnLeave</span><span class="hint">مدفوعة وغير مدفوعة</span></span>
+    </div>
+    <div class="stat">
+        <span class="stat-ico">▦</span>
+        <span class="stat-main"><span class="label">راحة/عطلة</span><span class="value">@Model.RestOrHoliday</span><span class="hint">جمعة أو عطلة رسمية</span></span>
     </div>
 </div>
 
 <div class="stat-grid">
+    <a class="stat warn" asp-controller="Overtime" asp-action="Index">
+        <span class="stat-ico">◷</span>
+        <span class="stat-main"><span class="label">إضافي بانتظار الاعتماد</span><span class="value">@Model.PendingOvertimeApprovals</span><span class="hint">أيام بها إضافي خام غير معتمد</span></span>
+    </a>
     <div class="stat">
-        <div class="label">👥 الموظفون النشطون</div>
-        <div class="value">@Model.ActiveEmployees</div>
-        <div class="hint">موظف على العمل</div>
-    </div>
-    <div class="stat ok">
-        <div class="label">✅ حاضرون اليوم</div>
-        <div class="value">@Model.Present</div>
-        <div class="hint">تم تسجيل بصمة دخول</div>
+        <span class="stat-ico">◔</span>
+        <span class="stat-main"><span class="label">إضافي الشهر (خام)</span><span class="value">@Model.OvertimeHoursMonth <small>ساعة</small></span><span class="hint">معتمد: @Model.ApprovedOvertimeHoursMonth ساعة</span></span>
     </div>
     <div class="stat bad">
-        <div class="label">🚫 غائبون اليوم</div>
-        <div class="value">@Model.Absent</div>
-        <div class="hint">بعد معالجة الحضور</div>
+        <span class="stat-ico">−</span>
+        <span class="stat-main"><span class="label">خصومات الشهر</span><span class="value">@Model.TotalDeductions.ToString("N2")</span><span class="hint">خصومات معتمدة + سلف @Model.TotalLoans.ToString("N2")</span></span>
     </div>
-    <div class="stat warn">
-        <div class="label">⏰ متأخرون</div>
-        <div class="value">@Model.Late</div>
-        <div class="hint">تجاوزوا فترة السماح</div>
-    </div>
-    <div class="stat bad">
-        <div class="label">🧩 بصمات ناقصة</div>
-        <div class="value">@Model.MissingPunches</div>
-        <div class="hint">دخول @Model.MissingEntry / خروج @Model.MissingExit</div>
-    </div>
-    <div class="stat warn">
-        <div class="label">🔍 يحتاج مراجعة</div>
-        <div class="value">@Model.NeedsReview</div>
-        <div class="hint">وردية غامضة: @Model.AmbiguousShifts</div>
-    </div>
-    <div class="stat">
-        <div class="label">🌴 إجازات اليوم</div>
-        <div class="value">@Model.OnLeave</div>
-        <div class="hint">مدفوعة وغير مدفوعة</div>
-    </div>
-    <div class="stat">
-        <div class="label">📅 راحة/عطلة</div>
-        <div class="value">@Model.RestOrHoliday</div>
-        <div class="hint">جمعة أو عطلة رسمية</div>
-    </div>
-</div>
-
-<div class="stat-grid">
-    <div class="stat warn">
-        <div class="label">⏱️ إضافي بانتظار الاعتماد</div>
-        <div class="value">@Model.PendingOvertimeApprovals</div>
-        <div class="hint">أيام بها إضافي خام غير معتمد</div>
-    </div>
-    <div class="stat">
-        <div class="label">📈 إضافي الشهر (خام)</div>
-        <div class="value">@Model.OvertimeHoursMonth <small>ساعة</small></div>
-        <div class="hint">معتمد: @Model.ApprovedOvertimeHoursMonth ساعة</div>
-    </div>
-    <div class="stat bad">
-        <div class="label">➖ خصومات الشهر</div>
-        <div class="value">@Model.TotalDeductions.ToString("N2")</div>
-        <div class="hint">خصومات معتمدة + سلف @Model.TotalLoans.ToString("N2")</div>
-    </div>
-    <div class="stat ok">
-        <div class="label">💰 صافي كشف الشهر</div>
-        <div class="value">@Model.TotalNetPayroll.ToString("N2") <small>@currency</small></div>
-        <div class="hint">
+    <a class="stat ok" asp-controller="Payroll" asp-action="Index" asp-route-month="@Model.Month" asp-route-year="@Model.Year">
+        <span class="stat-ico">⬣</span>
+        <span class="stat-main"><span class="label">صافي كشف الشهر</span><span class="value">@Model.TotalNetPayroll.ToString("N2") <small>@currency</small></span><span class="hint">
             @if (Model.PayrollItemCount > 0)
             {
                 <span>@Model.PayrollItemCount موظف — إجمالي @Model.TotalGrossPayroll.ToString("N2") — الحالة:</span>
@@ -161,31 +148,47 @@
             {
                 <span>لم يُحتسب كشف لهذا الشهر بعد</span>
             }
+        </span></span>
+    </a>
+</div>
+
+<div class="card">
+    <div class="card-head"><h3>إجراءات سريعة</h3></div>
+    <div class="card-body">
+        <div class="qa-grid">
+            <a class="qa" asp-controller="Import" asp-action="Index"><span class="qa-ico">⇩</span> استيراد البصمات</a>
+            <a class="qa" asp-controller="Attendance" asp-action="Index"><span class="qa-ico">◔</span> الحضور اليومي</a>
+            <a class="qa" asp-controller="Reports" asp-action="Departments"><span class="qa-ico">▤</span> تقارير الأقسام</a>
+            <a class="qa" asp-controller="Employees" asp-action="Index"><span class="qa-ico">◍</span> الموظفون</a>
+            <a class="qa" asp-controller="Payroll" asp-action="Index"><span class="qa-ico">⬣</span> المرتبات</a>
+            <a class="qa" asp-controller="Overtime" asp-action="Index"><span class="qa-ico">◷</span> اعتماد الإضافي</a>
+            <a class="qa" asp-controller="Leaves" asp-action="Index"><span class="qa-ico">☾</span> الإجازات</a>
         </div>
     </div>
 </div>
 
+<div class="panel-grid">
 <div class="card">
     <div class="card-head">
-        <h3>ملخص الأقسام — @Model.StatDate.ToString("yyyy-MM-dd")</h3>
-        <a class="btn btn-soft btn-sm" asp-controller="Reports" asp-action="Daily" asp-route-from="@Model.StatDate.ToString("yyyy-MM-dd")" asp-route-to="@Model.StatDate.ToString("yyyy-MM-dd")">التقرير التفصيلي</a>
+        <h3>الحضور حسب القسم — @dayStr</h3>
+        <a class="btn btn-soft btn-sm" asp-controller="Reports" asp-action="Daily" asp-route-from="@dayStr" asp-route-to="@dayStr">التقرير التفصيلي</a>
     </div>
     @if (Model.Departments.Count == 0)
     {
         ViewData["message"] = "لا يوجد موظفون مسجلون بعد. ابدأ بإضافة الموظفين أو استيرادهم من Excel.";
         ViewData["actionUrl"] = Url.Action("Import", "Employees");
         ViewData["actionText"] = "استيراد الموظفين من Excel";
-        ViewData["icon"] = "🏢";
+        ViewData["icon"] = "◍";
         <partial name="_Empty" />
     }
     else
     {
-        <div class="table-wrap">
+        <div class="table-wrap" style="margin:0">
             <table class="data">
                 <thead>
                 <tr>
                     <th>القسم</th><th>العدد</th><th>حضور</th><th>غياب</th><th>تأخير</th>
-                    <th>إجازات</th><th>راحة/عطلة</th><th>مراجعة</th><th>نسبة الحضور</th>
+                    <th>إجازات</th><th>مراجعة</th><th>نسبة الحضور</th>
                 </tr>
                 </thead>
                 <tbody>
@@ -198,7 +201,6 @@
                         <td class="num">@d.Absent</td>
                         <td class="num">@d.Late</td>
                         <td class="num">@d.OnLeave</td>
-                        <td class="num">@d.RestOrHoliday</td>
                         <td class="num">@d.NeedsReview</td>
                         <td style="min-width:120px">
                             <div class="bar"><span style="width:@(d.PresentRate)%"></span></div>
@@ -224,16 +226,16 @@
     {
         ViewData["message"] = "لا توجد كشوف رواتب بعد لعرض الاتجاه.";
         ViewData["hint"] = "احتسب كشف الشهر من صفحة المرتبات ليظهر هنا.";
-        ViewData["icon"] = "💰";
+        ViewData["icon"] = "⬣";
         <partial name="_Empty" />
     }
     else
     {
         var maxNet = Model.PayrollTrend.Max(p => p.TotalNet);
         if (maxNet <= 0) { maxNet = 1; }
-        <div class="table-wrap">
+        <div class="table-wrap" style="margin:0">
             <table class="data">
-                <thead><tr><th>الفترة</th><th>الموظفون</th><th>صافي الكشف</th><th style="min-width:220px">الاتجاه</th></tr></thead>
+                <thead><tr><th>الفترة</th><th>الموظفون</th><th>صافي الكشف</th><th style="min-width:160px">الاتجاه</th></tr></thead>
                 <tbody>
                 @foreach (var p in Model.PayrollTrend)
                 {
@@ -242,7 +244,7 @@
                         <td class="num"><a asp-controller="Payroll" asp-action="Index" asp-route-year="@p.Year" asp-route-month="@p.Month">@p.Label</a></td>
                         <td class="num">@p.ItemCount</td>
                         <td class="money">@p.TotalNet.ToString("N2")</td>
-                        <td style="min-width:220px">
+                        <td style="min-width:160px">
                             <div class="bar"><span style="width:@(pct)%"></span></div>
                             <span class="hint">@pct% من أعلى شهر</span>
                         </td>
@@ -252,6 +254,7 @@
             </table>
         </div>
     }
+</div>
 </div>
 
 <div class="card">
@@ -264,12 +267,12 @@
         ViewData["message"] = "لم يتم استيراد أي ملف بصمات بعد.";
         ViewData["actionUrl"] = Url.Action("Index", "Import");
         ViewData["actionText"] = "استيراد ملف بصمات";
-        ViewData["icon"] = "📄";
+        ViewData["icon"] = "▤";
         <partial name="_Empty" />
     }
     else
     {
-        <div class="table-wrap">
+        <div class="table-wrap" style="margin:0">
             <table class="data">
                 <thead>
                 <tr><th>الملف</th><th>تاريخ الاستيراد</th><th>المستخدم</th><th>إجمالي</th><th>ناجح</th><th>مكرر</th><th>غير صالح</th><th>موظف غير معروف</th><th></th></tr>

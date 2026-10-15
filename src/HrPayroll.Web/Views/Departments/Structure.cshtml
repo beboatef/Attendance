@@ -2,6 +2,7 @@
 @model List<Employee>
 @{
     ViewData["Title"] = "الهيكل التنظيمي";
+    ViewData["Subtitle"] = "القسم ← المسمى الوظيفي ← الموظفون";
     var departments = ViewBag.Departments as List<Department> ?? new List<Department>();
     var search = ViewBag.Search as string;
 }
