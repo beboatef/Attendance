@@ -30,6 +30,7 @@
   <ItemGroup>
     <ProjectReference Include="..\..\src\HrPayroll.Domain\HrPayroll.Domain.csproj" />
     <ProjectReference Include="..\..\src\HrPayroll.Infrastructure\HrPayroll.Infrastructure.csproj" />
+    <ProjectReference Include="..\..\src\HrPayroll.Web\HrPayroll.Web.csproj" />
   </ItemGroup>
 
 </Project>

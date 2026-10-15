@@ -47,6 +47,24 @@ public class DepartmentsController : Controller
         return View(departments);
     }
 
+    /// <summary>الهيكل التنظيمي: قسم ← مسمى وظيفي ← موظفون، من البيانات الفعلية.</summary>
+    [HttpGet]
+    public async Task<IActionResult> Structure(string? search, CancellationToken ct)
+    {
+        var q = _db.Employees.AsNoTracking().AsQueryable();
+        if (!string.IsNullOrWhiteSpace(search))
+        {
+            var s = search.Trim();
+            q = q.Where(e => e.FullName.Contains(s) || e.EmployeeCode.Contains(s));
+        }
+        var employees = await q.OrderBy(e => e.FullName).ToListAsync(ct);
+        var departments = await _db.Departments.AsNoTracking().OrderBy(d => d.Name).ToListAsync(ct);
+        ViewBag.Search = search;
+        ViewBag.Departments = departments;
+        ViewBag.Employees = employees;
+        return View(employees);
+    }
+
     [HttpGet]
     public IActionResult Create() => View("Form", new DepartmentFormViewModel());
 

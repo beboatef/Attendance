@@ -75,6 +75,56 @@ public class AttendanceController : Controller
 
     private const string EmployeeImportServiceMarker = HrPayroll.Infrastructure.Import.EmployeeImportService.EmployeeImportMarker;
 
+    /// <summary>الحضور الشهري: مصفوفة موظف × يوم مع مفتاح الحالات بالعربية.</summary>
+    public async Task<IActionResult> Monthly(int? year, int? month, string? department, string? search, CancellationToken ct)
+    {
+        var y = year ?? DateTime.Today.Year;
+        var m = month is >= 1 and <= 12 ? month.Value : DateTime.Today.Month;
+        var first = new DateTime(y, m, 1);
+        var days = Enumerable.Range(0, DateTime.DaysInMonth(y, m)).Select(i => first.AddDays(i)).ToList();
+        var last = days[^1];
+
+        var empQuery = _db.Employees.AsNoTracking().AsQueryable();
+        if (!string.IsNullOrWhiteSpace(department)) empQuery = empQuery.Where(e => e.Department == department);
+        if (!string.IsNullOrWhiteSpace(search))
+        {
+            var s = search.Trim();
+            empQuery = empQuery.Where(e => e.FullName.Contains(s) || e.EmployeeCode.Contains(s));
+        }
+        var employees = await empQuery.OrderBy(e => e.FullName).Take(300).ToListAsync(ct);
+        var empIds = employees.Select(e => e.Id).ToList();
+
+        var daily = await _db.DailyAttendances.AsNoTracking()
+            .Where(d => empIds.Contains(d.EmployeeId) && d.WorkDate >= first && d.WorkDate <= last)
+            .Select(d => new { d.EmployeeId, d.WorkDate, d.Status })
+            .ToListAsync(ct);
+        var byEmp = daily.GroupBy(d => d.EmployeeId).ToDictionary(g => g.Key, g => g.ToDictionary(x => x.WorkDate.Date, x => x.Status));
+
+        var vm = new MonthlyViewModel
+        {
+            Year = y, Month = m, Department = department, Search = search,
+            Days = days,
+            Departments = await _db.Departments.AsNoTracking().OrderBy(d => d.Name).ToListAsync(ct)
+        };
+        foreach (var e in employees)
+        {
+            var row = new MonthlyRow
+            {
+                EmployeeId = e.Id, EmployeeCode = e.EmployeeCode, EmployeeName = e.FullName, Department = e.Department
+            };
+            byEmp.TryGetValue(e.Id, out var map);
+            foreach (var d in days)
+            {
+                if (map != null && map.TryGetValue(d.Date, out var st))
+                    row.Cells.Add(new MonthlyCell { Date = d, Status = st, HasRecord = true });
+                else
+                    row.Cells.Add(new MonthlyCell { Date = d, Status = null, HasRecord = false });
+            }
+            vm.Rows.Add(row);
+        }
+        return View(vm);
+    }
+
     /// <summary>الحالات التي تحتاج مراجعة: بصمات ناقصة، وردية غامضة، حالات غير مصنفة.</summary>
     public async Task<IActionResult> Exceptions(DateTime? from, DateTime? to, string? department, CancellationToken ct)
     {

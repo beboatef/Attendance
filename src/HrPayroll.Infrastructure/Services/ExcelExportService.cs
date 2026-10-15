@@ -864,4 +864,15 @@ public class ExcelExportService
         PayrollStatus.Reopened => "أُعيد فتحه",
         _ => s.ToString()
     };
+
+    public static string EmploymentStatusText(EmploymentStatus s) => s switch
+    {
+        EmploymentStatus.Active => "على العمل",
+        EmploymentStatus.OnLeave => "في إجازة طويلة",
+        EmploymentStatus.Suspended => "موقوف",
+        EmploymentStatus.Terminated => "منتهي الخدمة",
+        _ => s.ToString()
+    };
+
+    public static string AttendanceStatusText(AttendanceStatus s) => AttendanceText(s);
 }

@@ -30,7 +30,7 @@
             <div class="def"><div class="k">ساعات العمل اليومية</div><div class="v">@Model.StandardWorkHours</div></div>
             <div class="def"><div class="k">الوردية</div><div class="v">@(Model.Shift?.ShiftName ?? "بدون")</div></div>
             <div class="def"><div class="k">تاريخ التعيين</div><div class="v">@Model.HireDate.ToString("yyyy-MM-dd")</div></div>
-            <div class="def"><div class="k">الحالة الوظيفية</div><div class="v">@Model.EmploymentStatus</div></div>
+            <div class="def"><div class="k">الحالة الوظيفية</div><div class="v">@ExcelExportService.EmploymentStatusText(Model.EmploymentStatus)</div></div>
             <div class="def"><div class="k">استحقاق الإجازة السنوية</div><div class="v">@Model.AnnualLeaveEntitlement يوم</div></div>
             <div class="def"><div class="k">الرصيد المتبقي</div><div class="v">@Model.AnnualLeaveBalance يوم</div></div>
             <div class="def"><div class="k">الهاتف</div><div class="v">@(Model.Phone ?? "-")</div></div>
@@ -126,10 +126,10 @@
                     <tr>
                         <td class="num">@l.StartDate.ToString("yyyy-MM-dd")</td>
                         <td class="num">@l.EndDate.ToString("yyyy-MM-dd")</td>
-                        <td>@l.LeaveType</td>
+                        <td>@ExcelExportService.LeaveTypeText(l.LeaveType)</td>
                         <td class="num">@l.WorkingDays</td>
                         <td>@(l.IsPaid ? "نعم" : "لا")</td>
-                        <td><span class="badge @(l.Status == ApprovalStatus.Approved ? "ok" : l.Status == ApprovalStatus.Rejected ? "bad" : "warn")">@l.Status</span></td>
+                        <td><span class="badge @(l.Status == ApprovalStatus.Approved ? "ok" : l.Status == ApprovalStatus.Rejected ? "bad" : "warn")">@ExcelExportService.ApprovalText(l.Status)</span></td>
                     </tr>
                 }
                 </tbody>

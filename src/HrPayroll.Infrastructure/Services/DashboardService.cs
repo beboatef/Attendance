@@ -19,6 +19,16 @@ public sealed class DepartmentAttendanceSummary
     public decimal PresentRate => Total == 0 ? 0m : Math.Round(Present * 100m / Total, 1);
 }
 
+public sealed class PayrollTrendPoint
+{
+    public int Year { get; set; }
+    public int Month { get; set; }
+    public decimal TotalNet { get; set; }
+    public decimal TotalGross { get; set; }
+    public int ItemCount { get; set; }
+    public string Label => $"{Year}-{Month:00}";
+}
+
 public sealed class DashboardData
 {
     public DateTime StatDate { get; set; }
@@ -53,6 +63,7 @@ public sealed class DashboardData
     public string? LastImportFile { get; set; }
     public List<ImportBatch> LatestImports { get; set; } = new();
     public List<DepartmentAttendanceSummary> Departments { get; set; } = new();
+    public List<PayrollTrendPoint> PayrollTrend { get; set; } = new();
 }
 
 /// <summary>بيانات لوحة التحكم مستخرجة من قاعدة البيانات الفعلية (بدون أي أرقام وهمية).</summary>
@@ -185,6 +196,34 @@ public class DashboardService
             data.Departments.Add(summary);
         }
         data.Departments = data.Departments.OrderByDescending(d => d.Total).ToList();
+
+        // اتجاه صافي الرواتب لآخر 6 أشهر (من الكشوف غير الملغاة) للرسم البياني.
+        var trendFrom = first.AddMonths(-5);
+        var allRuns = await _db.PayrollRuns.AsNoTracking()
+            .Where(r => r.Status != PayrollStatus.Cancelled)
+            .Select(r => new { r.Id, r.Year, r.Month, r.TotalNet, r.TotalGross })
+            .ToListAsync(ct);
+        var runs = allRuns
+            .Where(r => (r.Year * 12 + r.Month) >= (trendFrom.Year * 12 + trendFrom.Month)
+                     && (r.Year * 12 + r.Month) <= (first.Year * 12 + first.Month))
+            .OrderBy(r => r.Year).ThenBy(r => r.Month)
+            .ToList();
+        var runIds = runs.Select(r => r.Id).ToList();
+        var counts = runIds.Count == 0 ? new Dictionary<int, int>()
+            : await _db.PayrollItems.AsNoTracking()
+                .Where(i => runIds.Contains(i.PayrollRunId))
+                .GroupBy(i => i.PayrollRunId)
+                .Select(g => new { RunId = g.Key, Count = g.Count() })
+                .ToDictionaryAsync(x => x.RunId, x => x.Count, ct);
+        foreach (var r in runs)
+        {
+            data.PayrollTrend.Add(new PayrollTrendPoint
+            {
+                Year = r.Year, Month = r.Month,
+                TotalNet = r.TotalNet, TotalGross = r.TotalGross,
+                ItemCount = counts.TryGetValue(r.Id, out var c) ? c : 0
+            });
+        }
 
         return data;
     }

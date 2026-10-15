@@ -1,0 +1,118 @@
+@using HrPayroll.Domain.Enums
+@using HrPayroll.Infrastructure.Services
+@model HrPayroll.Web.ViewModels.MonthlyViewModel
+@{
+    ViewData["Title"] = "الحضور الشهري";
+    var months = new[] { "يناير","فبراير","مارس","أبريل","مايو","يونيو","يوليو","أغسطس","سبتمبر","أكتوبر","نوفمبر","ديسمبر" };
+    string Cell(AttendanceStatus? s) => s switch
+    {
+        AttendanceStatus.Present => "ح",
+        AttendanceStatus.Late => "ت",
+        AttendanceStatus.EarlyDeparture => "م",
+        AttendanceStatus.Absent or AttendanceStatus.UnexcusedAbsence => "غ",
+        AttendanceStatus.Leave or AttendanceStatus.PaidLeave => "ج",
+        AttendanceStatus.UnpaidLeave => "ب",
+        AttendanceStatus.RestDay => "ر",
+        AttendanceStatus.Holiday => "ع",
+        AttendanceStatus.MissingCheckIn => "د!",
+        AttendanceStatus.MissingCheckOut => "خ!",
+        AttendanceStatus.NeedsReview => "؟",
+        _ => "·"
+    };
+    string Cls(AttendanceStatus? s) => s switch
+    {
+        AttendanceStatus.Present => "c-ok",
+        AttendanceStatus.Late or AttendanceStatus.EarlyDeparture => "c-warn",
+        AttendanceStatus.Absent or AttendanceStatus.UnexcusedAbsence => "c-bad",
+        AttendanceStatus.MissingCheckIn or AttendanceStatus.MissingCheckOut or AttendanceStatus.NeedsReview => "c-review",
+        AttendanceStatus.Leave or AttendanceStatus.PaidLeave or AttendanceStatus.UnpaidLeave => "c-info",
+        AttendanceStatus.RestDay or AttendanceStatus.Holiday => "c-muted",
+        _ => "c-empty"
+    };
+}
+<div class="card">
+    <div class="card-head">
+        <div>
+            <h2>الحضور الشهري — @months[Model.Month - 1] @Model.Year</h2>
+            <div class="sub">مصفوفة موظف × يوم من سجلات الحضور المعالجة. فارغ = لا سجل معالج لهذا اليوم.</div>
+        </div>
+        <div class="btn-row no-print">
+            <button type="button" class="btn btn-ghost btn-sm" data-print>طباعة</button>
+            <a class="btn btn-soft btn-sm" asp-action="Index">الحضور اليومي</a>
+        </div>
+    </div>
+    <div class="card-body">
+        <form method="get" class="filters no-print">
+            <div class="field">
+                <label>الشهر</label>
+                <select name="month">
+                    @for (var m = 1; m <= 12; m++) { <option value="@m" selected="@(m == Model.Month)">@months[m-1]</option> }
+                </select>
+            </div>
+            <div class="field"><label>السنة</label><input type="number" name="year" value="@Model.Year" /></div>
+            <div class="field">
+                <label>القسم</label>
+                <select name="department">
+                    <option value="">كل الأقسام</option>
+                    @foreach (var d in Model.Departments) { <option value="@d.Name" selected="@(Model.Department == d.Name)">@d.Name</option> }
+                </select>
+            </div>
+            <div class="field"><label>بحث</label><input type="text" name="search" value="@Model.Search" placeholder="اسم أو كود" /></div>
+            <div class="field actions">
+                <button type="submit" class="btn btn-primary">عرض</button>
+            </div>
+        </form>
+        <div class="legend no-print" style="margin-top:10px">
+            <span class="badge ok">ح حاضر</span>
+            <span class="badge warn">ت متأخر</span>
+            <span class="badge warn">م انصراف مبكر</span>
+            <span class="badge bad">غ غائب</span>
+            <span class="badge info">ج إجازة مدفوعة</span>
+            <span class="badge info">ب بدون أجر</span>
+            <span class="badge muted">ر راحة</span>
+            <span class="badge muted">ع عطلة</span>
+            <span class="badge bad">؟ يحتاج مراجعة</span>
+        </div>
+    </div>
+</div>
+
+<div class="card">
+    <div class="card-head"><h3>المصفوفة (@Model.Rows.Count موظف — حد العرض 300)</h3></div>
+    @if (Model.Rows.Count == 0)
+    {
+        ViewData["message"] = "لا يوجد موظفون مطابقون أو لا توجد سجلات لهذا الشهر.";
+        ViewData["icon"] = "🕒";
+        <partial name="_Empty" />
+    }
+    else
+    {
+        <div class="table-wrap">
+            <table class="data monthly">
+                <thead>
+                <tr>
+                    <th class="sticky sticky-1">الكود</th>
+                    <th class="sticky sticky-2">الاسم</th>
+                    <th>حضور</th><th>غياب</th><th>إجازة</th>
+                    @foreach (var d in Model.Days) { <th class="num day-col">@d.Day</th> }
+                </tr>
+                </thead>
+                <tbody>
+                @foreach (var r in Model.Rows)
+                {
+                    <tr>
+                        <td class="sticky sticky-1 num">@r.EmployeeCode</td>
+                        <td class="sticky sticky-2">@r.EmployeeName</td>
+                        <td class="num">@r.Present</td>
+                        <td class="num">@r.Absent</td>
+                        <td class="num">@r.Leave</td>
+                        @foreach (var c in r.Cells)
+                        {
+                            <td class="num day-col @Cls(c.Status)" title="@c.Date.ToString("yyyy-MM-dd") — @(c.Status.HasValue ? ExcelExportService.AttendanceText(c.Status.Value) : "لا سجل")">@Cell(c.Status)</td>
+                        }
+                    </tr>
+                }
+                </tbody>
+            </table>
+        </div>
+    }
+</div>

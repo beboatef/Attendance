@@ -214,6 +214,48 @@
 
 <div class="card">
     <div class="card-head">
+        <div>
+            <h3>اتجاه صافي الرواتب — آخر 6 أشهر</h3>
+            <div class="sub">من الكشوف غير الملغاة في قاعدة البيانات.</div>
+        </div>
+        <a class="btn btn-soft btn-sm" asp-controller="Reports" asp-action="Index">مركز التقارير</a>
+    </div>
+    @if (Model.PayrollTrend.Count == 0)
+    {
+        ViewData["message"] = "لا توجد كشوف رواتب بعد لعرض الاتجاه.";
+        ViewData["hint"] = "احتسب كشف الشهر من صفحة المرتبات ليظهر هنا.";
+        ViewData["icon"] = "💰";
+        <partial name="_Empty" />
+    }
+    else
+    {
+        var maxNet = Model.PayrollTrend.Max(p => p.TotalNet);
+        if (maxNet <= 0) { maxNet = 1; }
+        <div class="table-wrap">
+            <table class="data">
+                <thead><tr><th>الفترة</th><th>الموظفون</th><th>صافي الكشف</th><th style="min-width:220px">الاتجاه</th></tr></thead>
+                <tbody>
+                @foreach (var p in Model.PayrollTrend)
+                {
+                    var pct = Math.Round(p.TotalNet * 100m / maxNet, 1);
+                    <tr>
+                        <td class="num"><a asp-controller="Payroll" asp-action="Index" asp-route-year="@p.Year" asp-route-month="@p.Month">@p.Label</a></td>
+                        <td class="num">@p.ItemCount</td>
+                        <td class="money">@p.TotalNet.ToString("N2")</td>
+                        <td style="min-width:220px">
+                            <div class="bar"><span style="width:@(pct)%"></span></div>
+                            <span class="hint">@pct% من أعلى شهر</span>
+                        </td>
+                    </tr>
+                }
+                </tbody>
+            </table>
+        </div>
+    }
+</div>
+
+<div class="card">
+    <div class="card-head">
         <h3>آخر عمليات استيراد البصمات</h3>
         <a class="btn btn-soft btn-sm" asp-controller="Import" asp-action="Index">استيراد ملف جديد</a>
     </div>

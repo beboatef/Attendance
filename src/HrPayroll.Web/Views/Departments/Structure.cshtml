@@ -1,0 +1,97 @@
+@using HrPayroll.Domain.Entities
+@model List<Employee>
+@{
+    ViewData["Title"] = "الهيكل التنظيمي";
+    var departments = ViewBag.Departments as List<Department> ?? new List<Department>();
+    var search = ViewBag.Search as string;
+}
+<div class="card">
+    <div class="card-head">
+        <div>
+            <h2>الهيكل التنظيمي</h2>
+            <div class="sub">القسم ← المسمى الوظيفي ← الموظفون — من البيانات الفعلية في قاعدة البيانات.</div>
+        </div>
+        <div class="btn-row no-print">
+            <button type="button" class="btn btn-soft btn-sm" data-expand-all=".org-dept details">عرض الكل</button>
+            <button type="button" class="btn btn-ghost btn-sm" data-collapse-all=".org-dept details">طي الكل</button>
+            <button type="button" class="btn btn-ghost btn-sm" data-print data-print-expand=".org-dept details">طباعة</button>
+        </div>
+    </div>
+    <div class="card-body">
+        <form method="get" class="filters no-print">
+            <div class="field">
+                <label>بحث عن موظف</label>
+                <input type="text" name="search" value="@search" placeholder="اسم أو كود الموظف" />
+            </div>
+            <div class="field actions">
+                <button type="submit" class="btn btn-primary">بحث</button>
+                <a class="btn btn-ghost" asp-action="Structure">مسح</a>
+            </div>
+        </form>
+    </div>
+</div>
+
+@if (Model.Count == 0)
+{
+    ViewData["message"] = "لا يوجد موظفون مطابقون.";
+    ViewData["hint"] = "أضف الموظفين أو غيّر كلمة البحث.";
+    ViewData["icon"] = "🏢";
+    <div class="card"><partial name="_Empty" /></div>
+}
+else
+{
+    var byDept = Model.GroupBy(e => string.IsNullOrWhiteSpace(e.Department) ? "بدون قسم" : e.Department)
+        .OrderByDescending(g => g.Count()).ToList();
+    foreach (var dept in byDept)
+    {
+        var deptRef = departments.FirstOrDefault(d => d.Name == dept.Key);
+        var byTitle = dept.GroupBy(e => string.IsNullOrWhiteSpace(e.JobTitle) ? "بدون مسمى" : e.JobTitle)
+            .OrderByDescending(g => g.Count()).ToList();
+        <section class="card org-dept">
+            <div class="card-head dept-head">
+                <div>
+                    <h3>@dept.Key @(deptRef != null && !deptRef.IsActive ? "— معطّل" : "")</h3>
+                    <div class="sub">@byTitle.Count مسمى وظيفي · @dept.Count() موظف</div>
+                </div>
+                <div class="dept-kpis">
+                    <span class="kpi">الموظفون: <b>@dept.Count()</b></span>
+                    <a class="btn btn-soft btn-sm no-print" asp-controller="Employees" asp-action="Index" asp-route-department="@dept.Key">فتح في قائمة الموظفين</a>
+                </div>
+            </div>
+            <div class="jt-table">
+                <div class="jt-row jt-thead" role="row">
+                    <span class="jt-name">المسمى الوظيفي</span>
+                    <span class="num">العدد</span>
+                    <span class="jt-act no-print">الأسماء</span>
+                </div>
+                @foreach (var jt in byTitle)
+                {
+                    <details class="jt-group" @(jt.Count() <= 10 ? "open" : null)>
+                        <summary class="jt-row">
+                            <span class="jt-name">@jt.Key</span>
+                            <span class="num">@jt.Count()</span>
+                            <span class="jt-act">عرض الأسماء (@jt.Count())</span>
+                        </summary>
+                        <div class="jt-emps">
+                            <table class="data">
+                                <thead><tr><th>الكود</th><th>الاسم</th><th>الراتب الأساسي</th><th>الحالة</th><th></th></tr></thead>
+                                <tbody>
+                                @foreach (var e in jt.OrderBy(x => x.FullName))
+                                {
+                                    <tr>
+                                        <td class="num">@e.EmployeeCode</td>
+                                        <td>@e.FullName</td>
+                                        <td class="money">@e.BasicSalary.ToString("N2")</td>
+                                        <td>@(e.IsActive ? "على العمل" : "غير نشط")</td>
+                                        <td><a class="btn btn-ghost btn-sm" asp-controller="Employees" asp-action="Details" asp-route-id="@e.Id">عرض</a></td>
+                                    </tr>
+                                }
+                                </tbody>
+                            </table>
+                        </div>
+                    </details>
+                }
+            </div>
+        </section>
+    }
+}

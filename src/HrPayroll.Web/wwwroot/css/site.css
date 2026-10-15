@@ -803,3 +803,15 @@ input.auth-control::placeholder { color: #aab4c1; }
     .jt-act { grid-column: 1 / -1; text-align: start; }
     .jt-thead .jt-act { display: none; }
 }
+
+/* ================= مصفوفة الحضور الشهري ================= */
+table.monthly .day-col { min-width: 34px; font-weight: 700; }
+table.monthly td.c-ok { background: #e8f5f0; color: #10614b; }
+table.monthly td.c-warn { background: #fdf6e8; color: #7c5312; }
+table.monthly td.c-bad { background: #fdecee; color: #8f1f31; }
+table.monthly td.c-review { background: #fff3f5; color: #8f1f31; border: 1px dashed #e8a2ad; }
+table.monthly td.c-info { background: #eef4fa; color: #164a70; }
+table.monthly td.c-muted { background: #f1f4f8; color: #7b8695; }
+table.monthly td.c-empty { color: #c3cad4; }
+.topbar-search { display: flex; gap: 6px; align-items: center; }
+.topbar-search input { max-width: 220px; }

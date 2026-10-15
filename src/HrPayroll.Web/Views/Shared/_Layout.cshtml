@@ -62,6 +62,7 @@
                         <a class="@Nav("Employees", "Create")" asp-controller="Employees" asp-action="Create"><span class="txt">إضافة موظف</span></a>
                         <a class="@Nav("Employees", "Import")" asp-controller="Employees" asp-action="Import"><span class="txt">استيراد من Excel</span></a>
                         <a class="@Nav("Departments")" asp-controller="Departments" asp-action="Index"><span class="txt">الأقسام</span></a>
+                        <a asp-controller="Departments" asp-action="Structure"><span class="txt">الهيكل التنظيمي</span></a>
                         <a class="@Nav("JobTitles")" asp-controller="JobTitles" asp-action="Index"><span class="txt">المسميات الوظيفية</span></a>
                     </details>
 
@@ -69,6 +70,7 @@
                         <summary><span class="ico">🕒</span><span class="txt">الحضور والانصراف</span><span class="chev">›</span></summary>
                         <a class="@Nav("Import")" asp-controller="Import" asp-action="Index"><span class="txt">استيراد البصمات</span></a>
                         <a class="@Nav("Attendance", "Index")" asp-controller="Attendance" asp-action="Index"><span class="txt">الحضور اليومي</span></a>
+                        <a asp-controller="Attendance" asp-action="Monthly"><span class="txt">الحضور الشهري</span></a>
                         <a class="@Nav("Attendance", "Exceptions")" asp-controller="Attendance" asp-action="Exceptions"><span class="txt">الاستثناءات والمراجعة</span></a>
                         <a class="@Nav("Shifts")" asp-controller="Shifts" asp-action="Index"><span class="txt">الورديات</span></a>
                         <a class="@Nav("Holidays")" asp-controller="Holidays" asp-action="Index"><span class="txt">العطلات وأيام الراحة</span></a>
@@ -108,6 +110,13 @@
                 <button type="button" class="topbar-menu" id="mobileMenu" aria-label="القائمة">☰</button>
                 <div class="topbar-title">@title</div>
                 <div class="topbar-actions">
+                    @if (isHr)
+                    {
+                        <form class="topbar-search no-print" asp-controller="Employees" asp-action="Index" method="get">
+                            <input type="search" name="search" placeholder="بحث سريع: اسم أو كود" aria-label="بحث سريع عن موظف" />
+                            <button type="submit" class="btn btn-ghost btn-sm">بحث</button>
+                        </form>
+                    }
                     <span class="user-chip"><span class="dot"></span> @User.Identity?.Name</span>
                     <form asp-controller="Account" asp-action="Logout" method="post" class="d-inline">
                         <button type="submit" class="btn btn-ghost btn-sm">خروج</button>

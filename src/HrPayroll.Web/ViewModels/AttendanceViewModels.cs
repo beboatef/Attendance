@@ -22,7 +22,7 @@ public class AttendanceIndexViewModel
     public decimal TotalRawOvertimeHours => Math.Round(Rows.Sum(r => r.RawOvertimeMinutes) / 60m, 2);
 
     public SelectList StatusList => new(
-        Enum.GetValues<AttendanceStatus>().Select(s => new { Id = (int)s, Name = s.ToString() }), "Id", "Name",
+        Enum.GetValues<AttendanceStatus>().Select(s => new { Id = (int)s, Name = ExcelExportService.AttendanceText(s) }), "Id", "Name",
         Filter.Status.HasValue ? (int)Filter.Status.Value : null);
 }
 
@@ -42,7 +42,7 @@ public class AttendanceCorrectionViewModel
     public bool Approve { get; set; } = true;
 
     public SelectList StatusList => new(
-        Enum.GetValues<AttendanceStatus>().Select(s => new { Id = (int)s, Name = s.ToString() }), "Id", "Name",
+        Enum.GetValues<AttendanceStatus>().Select(s => new { Id = (int)s, Name = ExcelExportService.AttendanceText(s) }), "Id", "Name",
         Status.HasValue ? (int)Status.Value : null);
 }
 
@@ -50,5 +50,35 @@ public class ExceptionsViewModel
 {
     public AttendanceReportFilter Filter { get; set; } = new();
     public List<DailyAttendanceReportRow> Rows { get; set; } = new();
+    public List<Department> Departments { get; set; } = new();
+}
+
+public sealed class MonthlyCell
+{
+    public DateTime Date { get; set; }
+    public AttendanceStatus? Status { get; set; }
+    public bool HasRecord { get; set; }
+}
+
+public sealed class MonthlyRow
+{
+    public int EmployeeId { get; set; }
+    public string EmployeeCode { get; set; } = string.Empty;
+    public string EmployeeName { get; set; } = string.Empty;
+    public string? Department { get; set; }
+    public List<MonthlyCell> Cells { get; set; } = new();
+    public int Present => Cells.Count(c => c.Status is AttendanceStatus.Present or AttendanceStatus.Late or AttendanceStatus.EarlyDeparture);
+    public int Absent => Cells.Count(c => c.Status is AttendanceStatus.Absent or AttendanceStatus.UnexcusedAbsence);
+    public int Leave => Cells.Count(c => c.Status is AttendanceStatus.Leave or AttendanceStatus.PaidLeave or AttendanceStatus.UnpaidLeave);
+}
+
+public sealed class MonthlyViewModel
+{
+    public int Year { get; set; }
+    public int Month { get; set; }
+    public string? Department { get; set; }
+    public string? Search { get; set; }
+    public List<DateTime> Days { get; set; } = new();
+    public List<MonthlyRow> Rows { get; set; } = new();
     public List<Department> Departments { get; set; } = new();
 }
